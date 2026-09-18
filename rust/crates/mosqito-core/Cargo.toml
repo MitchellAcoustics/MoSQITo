@@ -1,0 +1,26 @@
+[package]
+name = "mosqito-core"
+description = "Standards-conformant psychoacoustic sound quality metrics (ISO 532-1, ECMA-418-2, DIN 45692)"
+keywords = ["psychoacoustics", "loudness", "roughness", "sound-quality", "dsp"]
+categories = ["multimedia::audio", "science"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+ndarray = { workspace = true, features = ["rayon"] }
+num-complex.workspace = true
+rayon.workspace = true
+realfft.workspace = true
+rustfft.workspace = true
+
+[dev-dependencies]
+approx = "0.5"
+serde_json = "1"
+
+[features]
+default = []

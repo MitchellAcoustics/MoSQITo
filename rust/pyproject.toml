@@ -1,0 +1,44 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "mosqito-rs"
+description = "Fast, standards-conformant psychoacoustic sound quality metrics (ISO 532-1, ECMA-418-2, DIN 45692)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "MoSQITo Developers" }]
+keywords = ["psychoacoustics", "loudness", "roughness", "sharpness", "sound-quality"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = ["numpy>=1.22"]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/MitchellAcoustics/MoSQITo"
+
+[project.optional-dependencies]
+# Used by the differential test tier, which compares against both the original
+# Python implementation and an independently verified ECMA-418-2 one.
+dev = ["pytest>=7", "pytest-benchmark", "scipy>=1.10", "mosqito", "sottek-hearing-model"]
+
+[tool.maturin]
+manifest-path = "crates/mosqito-py/Cargo.toml"
+python-source = "python"
+module-name = "mosqito_rs._core"
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "conformance: checks a published standard's reference values (gating)",
+    "differential: compares against another implementation (diagnostic, non-gating)",
+]

@@ -3,3 +3,8 @@ __pycache__/
 .vscode/
 .ipynb_checkpoints/
 tests/output
+
+# Rust port
+rust/target/
+*.so
+.venv/
