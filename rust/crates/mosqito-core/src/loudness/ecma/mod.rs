@@ -11,6 +11,10 @@ mod specific_loudness;
 mod tables;
 
 pub use auditory_filters_centre_freq::auditory_filters_centre_freq;
+pub use band_pass_signals::band_pass_signals;
 pub use gammatone::gammatone;
 pub use loudness_ecma::loudness_ecma;
 pub use nonlinearity::nonlinearity;
+pub use preprocessing::preprocess;
+pub use specific_loudness::{block_sample_index, n_blocks, specific_loudness_for_band};
+pub use tables::LTQ_Z;

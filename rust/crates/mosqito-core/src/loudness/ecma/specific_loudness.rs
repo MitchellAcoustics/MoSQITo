@@ -38,6 +38,19 @@ use super::nonlinearity::nonlinearity;
 
 const FS: f64 = 48000.0;
 
+/// The number of blocks Eq. 20 gives for `n_new` (padded sample count,
+/// excluding the leading `sb` zeros) and hop size `sh`.
+pub fn n_blocks(n_new: usize, sh: usize) -> usize {
+    (n_new + sh).div_ceil(sh) - 1
+}
+
+/// The sample index of position `k` (`0..sb`) within block `l`, per the
+/// block index formula documented on this module.
+pub fn block_sample_index(l: usize, k: usize, sh: usize, sb: usize) -> usize {
+    let step = sb as f64 / (sb - 1) as f64;
+    ((l * sh) as f64 + k as f64 * step).floor() as usize
+}
+
 /// Computes one band's specific loudness and block-mean-time series from
 /// its (already gammatone-filtered) band-pass signal.
 ///
@@ -46,8 +59,7 @@ const FS: f64 = 48000.0;
 /// zeros (Eq. 3); `band_pass_signal` itself must include those leading
 /// zeros (i.e. be `preprocess`'s full padded output, filtered).
 ///
-/// Returns `(n_specific, time_axis)`, each of length `n_blocks =
-/// (n_new + sh).div_ceil(sh) - 1`.
+/// Returns `(n_specific, time_axis)`, each of length [`n_blocks`].
 pub fn specific_loudness_for_band(
     band_pass_signal: &[f64],
     sb: usize,
@@ -55,18 +67,16 @@ pub fn specific_loudness_for_band(
     n_new: usize,
     ltq_z: f64,
 ) -> (Vec<f64>, Vec<f64>) {
-    let n_blocks = (n_new + sh).div_ceil(sh) - 1;
-    let step = sb as f64 / (sb - 1) as f64;
+    let blocks = n_blocks(n_new, sh);
 
-    let mut n_specific = Vec::with_capacity(n_blocks);
-    let mut time_axis = Vec::with_capacity(n_blocks);
+    let mut n_specific = Vec::with_capacity(blocks);
+    let mut time_axis = Vec::with_capacity(blocks);
 
-    for l in 0..n_blocks {
-        let start = (l * sh) as f64;
+    for l in 0..blocks {
         let mut sum_sq = 0.0f64;
         let mut sum_t = 0.0f64;
         for k in 0..sb {
-            let idx = (start + k as f64 * step).floor() as usize;
+            let idx = block_sample_index(l, k, sh, sb);
             let v = band_pass_signal[idx].max(0.0);
             sum_sq += v * v;
             sum_t += idx as f64 / FS;

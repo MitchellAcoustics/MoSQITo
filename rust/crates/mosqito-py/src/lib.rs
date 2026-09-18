@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 mod loudness_ecma;
 mod loudness_zwst;
 mod loudness_zwtv;
+mod roughness_ecma;
 mod sharpness_din;
 mod slm;
 
@@ -33,6 +34,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst_perseg, m)?)?;
     m.add_function(wrap_pyfunction!(loudness_zwtv::loudness_zwtv, m)?)?;
     m.add_function(wrap_pyfunction!(loudness_ecma::loudness_ecma, m)?)?;
+    m.add_function(wrap_pyfunction!(roughness_ecma::roughness_ecma, m)?)?;
     m.add_function(wrap_pyfunction!(
         sharpness_din::sharpness_din_from_loudness_scalar,
         m

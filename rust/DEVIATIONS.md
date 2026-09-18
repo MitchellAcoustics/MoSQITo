@@ -11,9 +11,9 @@ MoSQITo's Python. Where the Python is unambiguously a bug relative to the
 standard, `mosqito-rs` fixes it. Where the Python encodes a deliberate,
 standards-sanctioned correction (the ECMA-418-2 roughness deviations from
 Wanty, Glesser & Casagrande Hirono, INTERNOISE 2024), `mosqito-rs` follows the
-same correction. Entries below are grouped by status: **implemented**,
-**planned** (identified, not yet reached in the port order), and **deferred**
-(Phase 2 scope).
+same correction. All Phase 1 metrics have landed, so every entry below is
+either **implemented** or **deferred** (Phase 2 scope, identified during
+Phase 1's research but out of scope for it).
 
 ---
 
@@ -211,42 +211,45 @@ rectification and `mosqito.utils.time_segmentation`'s `is_ecma=True` branch.
 `loudness_ecma.py` calls only `_band_pass_signals` (via `_ecma_time_segmentation`
 for the actual segmentation), never this one. Not reproduced.
 
----
-
-## Planned (identified during exploration, not yet implemented)
-
 ### D-ecma-1 — §7.1.2 envelope downsampling method
 
 ECMA-418-2 does not specify how to downsample the envelopes. Wanty et al.
 (2024) choose decimation over Fourier resampling, to avoid assuming the
-signal is periodic — sanctioned, to be followed as written.
-**Open discrepancy to resolve when implemented**: the paper's prose says an
-"anti-aliasing FIR filter", but `roughness_ecma.py:133-134` calls
+signal is periodic — sanctioned, followed as written. The paper's prose says
+an "anti-aliasing FIR filter", but `roughness_ecma.py:133-134` calls
 `scipy.signal.decimate` with its default IIR (Chebyshev type I) filter, not
-FIR. `mosqito-rs` will match the code (IIR, via the `decimate` primitive
-already implemented and golden-tested in `dsp::filter`), and this entry will
-record the conflict as resolved in favour of the code once the roughness port
-lands.
+FIR; resolved in favour of the code (matching what the published reference
+values were actually produced with), via the `decimate` primitive already
+golden-tested against SciPy in `dsp::filter`. Implemented in
+`rust/crates/mosqito-core/src/roughness/ecma/envelope_spectrum.rs`, split as
+`8*4` matching `roughness_ecma.py:133-134`'s own split (SciPy warns against a
+single decimation by more than 13).
 
 ### D-ecma-2 — §7.1.5.1 Eqs. 73–76 replaced by a closed form
 
-Wanty et al. give the analytic solution of the standard's quadratic peak-fit,
-agreeing with the matrix solution to 1e-8 Hz and cheaper to compute. Already
-implemented in MoSQITo at `_refinement.py:75`:
+Wanty et al.'s analytic solution of the standard's quadratic peak-fit,
+agreeing with the matrix solution to 1e-8 Hz and cheaper to compute. Taken
+from MoSQITo's code (`_refinement.py:75`), not the paper's PDF — text
+extraction from the PDF renders the numerator's minus sign as a plus, which
+would silently invert the sub-bin correction:
 
 ```
 f_p = (k_p - (Phi[k+1] - Phi[k-1]) / (2*Phi[k-1] + 2*Phi[k+1] - 4*Phi[k])) * delta_f
 ```
 
-`delta_f = 1500/512`. **Must be taken from the code, not the paper's PDF**:
-text extraction from the PDF renders the numerator's minus sign as a plus,
-which would silently invert the sub-bin correction. Boundary cases `k=0` and
-`k=255` use truncated amplitude sums (`_refinement.py:66-71`).
+`delta_f = 1500/512`. Implemented in
+`rust/crates/mosqito-core/src/roughness/ecma/refinement.rs`'s `refinement`.
+Boundary cases `k=0` and `k=255` use truncated amplitude sums
+(`_refinement.py:66-71`, ported verbatim) — provably unreachable from this
+crate's own `peak_picking` (its search window starts at index 2 and
+`find_peaks` never reports an array boundary as a peak, so `kpi` is always
+in `2..=254`), kept anyway for defensiveness and fidelity to the source.
 
 ### D-ecma-3 — §7.1.5.1 Eq. 78 is wrong as published
 
 Corrected bias adjustment (already in MoSQITo, wrong published form commented
-out beside it, `_refinement.py:31-40`):
+out beside it, `_refinement.py:31-40`), implemented in `refinement.rs`'s
+`rho`:
 
 ```
 rho = E(theta_corr) - (E(theta_corr) - E(theta_corr-1)) * beta(theta_corr) / (beta(theta_corr) - beta(theta_corr-1))
@@ -257,34 +260,50 @@ rho = E(theta_corr) - (E(theta_corr) - E(theta_corr-1)) * beta(theta_corr) / (be
 
 ### D-ecma-4 — §7.1.7 Eq. 105 fitting curve is wrong
 
-Use the Sottek/Becker/Lobato (INTERNOISE 2020) form instead
-(`_non_linear_transform.py:37`):
+Uses the Sottek/Becker/Lobato (INTERNOISE 2020) form instead
+(`_non_linear_transform.py:37`), implemented in
+`rust/crates/mosqito-core/src/roughness/ecma/non_linear_transform.rs`:
 
 ```
 E(l50) = 0.25 * tanh(1.75 * (B(l50) - 2.5)) + 0.7
 ```
 
-### D-ecma-5 — calibration factor `c_R`
+### D-ecma-5 — calibration factor `c_R` re-derived: `0.045` → `0.03288`
 
-A consequence of D-ecma-4. The standard permits only 0.25% variation on `c_R`;
-MoSQITo's `c_R = 0.045` deviates far beyond that (`_non_linear_transform.py`).
-**Coupled to an unsanctioned bug** (see below): `c_R = 0.045` was fitted with
-that bug in place, so it cannot be carried over unchanged once the bug is
-fixed. When the roughness port lands, `c_R` will be re-derived by fitting
-against the ECMA Annex C reference values in
-`validations/sq_metrics/roughness_ecma/input/references.py:1132-1172`, and
-both the old and new constants will be recorded here with fit residuals.
+A consequence of D-ecma-4 and, more directly, of fixing the unsanctioned
+`_lowpass_filter.py` bug below: `c_R = 0.045` was fitted by MoSQITo *with
+that bug in place*, so it could not be carried over once the bug was fixed.
+Re-derivation used the fact that, with a fixed `tau`/rising-falling
+classification, `R` is exactly linear in `c_R` (the classification compares
+`R_hat` values scaled by the same positive `c_R`, so it — and everything
+downstream — is scale-invariant in sign; only the final magnitude scales).
+This meant the expensive part (the full pipeline up to `non_linear_transform`)
+only needed running once per test point, at `c_R = 1`, then fit in closed
+form: `c_R = sum(R1 * ref) / sum(R1^2)` against the ECMA-418-2 Annex C values
+in `references.py:1132-1172`, over all 7 fc x 15 fmod points.
+- **Old** (MoSQITo, with the buggy filter): `c_R = 0.045`. Measured
+  (with the *corrected* filter substituted in, to isolate `c_R`'s own
+  effect): only 55/105 points within ±0.1 asper of Zwicker & Fastl, mean
+  38% relative error against ECMA Annex C, only 2/105 within 30% of it.
+- **New** (`mosqito-rs`, with the corrected filter): `c_R = 0.03288`.
+  104/105 points within ±0.1 asper of Zwicker & Fastl (max deviation 0.176,
+  at fc=125/fmod=300 — the one exception); mean 2.3% relative error against
+  ECMA Annex C, 104/105 within 30% of it (same one exception, at 46%).
+  Gated directly in `tests/conformance_roughness_ecma.rs`.
 
 ### D-ecma-6 — amplitude floor 0.074376
 
 Kept as-is; the paper notes the standard gives no origin for this threshold
-(`roughness_ecma.py:182`).
+(`roughness_ecma.py:182`). Implemented as `AMPLITUDE_FLOOR` in
+`roughness_ecma.rs`.
 
 ### D-ecma-7 — edition
 
 Targets ECMA-418-2 **2nd edition (December 2022)**. The 1st edition (2020)
 had an error in Eqs. 13 & 14, corrected in the 2nd; MoSQITo 1.2 implements the
-corrected version, and `mosqito-rs` will too.
+corrected version, and `mosqito-rs` does too (inherited via D-ecma-4's
+gammatone/nonlinearity equations, already 2nd-edition in
+`mosqito-core::loudness::ecma`).
 
 ### Bug fix (unsanctioned by the paper) — `roughness_ecma/_lowpass_filter.py`
 
@@ -293,14 +312,66 @@ computes `R_time_spec` from `R_hat[1,:]` and `tau[1,:]` — single rows
 broadcast across every time frame, rather than `R_hat[1:,:]`/`tau[1:,:]`.
 `R_rising` likewise diffs across bands. ECMA Eq. 109/110 specify a first-order
 lowpass **over time**, τ = 0.0625 rising / 0.5 falling. This is an
-unambiguous bug the INTERNOISE 2024 paper does not mention. **Directly
-coupled to D-ecma-5** — see there.
+unambiguous bug the INTERNOISE 2024 paper does not mention. **Fixed** in
+`rust/crates/mosqito-core/src/roughness/ecma/lowpass_filter.rs`: a genuine
+per-band recursive filter over time, with `tau` chosen fresh at each step
+from that step's own `R_hat` vs. the filter's own previous output. Directly
+coupled to D-ecma-5's `c_R` re-fit — see there for the measured effect on
+conformance.
+
+### D-ecma-8 — `_estimate_fund_mod_rate.py:59-61` `i_peak` indexing — investigated, kept as-is
+
+- **MoSQITo**: `i_peak = np.argmax(Ai_tilde[I_max])` is an index *local* to
+  the winning harmonic complex's own sub-array (position `0..len(I_max)`),
+  but is then used to index the *global* `f_p` array directly (`f_p[i_peak]`)
+  in Eq. 93's centre-of-gravity weighting, rather than `f_p[I_max[i_peak]]`.
+  Confirmed by direct tracing (a constructed 6-peak example where `I_max =
+  [0, 5]` and `argmax` picks local position 1): the published behaviour uses
+  `f_p[1]` where the evidently-intended value is `f_p[5]`.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/roughness/ecma/estimate_fund_mod_rate.rs`
+  reproduces the local-index behaviour exactly (`i_peak_local`, indexing
+  `f_p` directly with it) — this is one of the few bugs in this register
+  *not* fixed despite looking like a clear array-indexing slip rather than
+  anything ECMA-418-2 Eq. 93 intends.
+- **Why not fixed**: D-ecma-5's `c_R` re-fit was performed by calling
+  MoSQITo's own unmodified `_estimate_fund_mod_rate` (via
+  `tools/gen_reference_roughness_ecma_annex_c.py`'s companion fitting
+  script), so it embeds this exact behaviour. Changing it here without
+  re-fitting `c_R` again would silently invalidate that calibration; the
+  effect is a secondary multiplicative correction (`w_peak`) on top of the
+  harmonic-complex amplitude sum, not large enough on its own to justify
+  redoing the fit for this one finding.
+- **Measured impact**: `estimate_fund_mod_rate_matches_mosqito`
+  (`tests/golden_roughness_ecma.rs`) checks this bit-for-bit against real
+  `mosqito` on 20 synthetic multi-peak cases (including the specific
+  multi-element-`I_max` case that exposed this), to ~1e-9 relative.
 
 ### `_noise_reduction.py:37`
 
 The guard term is written `10e-10` (= 1e-9); almost certainly intended as
-`1e-10`. Low impact; will be decided and recorded (not silently transcribed)
-when the roughness port lands.
+`1e-10`, but transcribed literally
+(`rust/crates/mosqito-core/src/roughness/ecma/noise_reduction.rs`) rather
+than silently corrected — no standards text was available to confirm intent,
+and the term only guards a division by (near-)zero, so the practical effect
+of either value is a matter of degree, not correctness. Verified bit-for-bit
+against real `mosqito`'s `_noise_reduction` in `golden_roughness_ecma.rs`.
+
+### Residual floating-point differences in the envelope/spectrum chain
+
+`roughness_ecma`'s Hilbert-transform/decimate/FFT chain
+(`envelope_spectrum.rs`) uses `rustfft`/`realfft` rather than NumPy/SciPy's
+FFT and IIR filter implementations. Every algorithmic stage matches real
+`mosqito` (or, for the two corrected stages, this port's own validated
+reproduction) to ~1e-9 in isolation
+(`golden_roughness_ecma.rs`), but chained through several FFT/IIR passes
+per block, small floating-point differences accumulate — visible mainly as
+a large *relative* error during a signal's near-silent attack transient
+(where the true value is itself close to zero), while the standards-anchored
+representative values (`R`, `R_specific`) agree to <1%. Not a deviation from
+Python's *behaviour* (nothing here is a choice diverging from MoSQITo), so
+not standards-relevant — recorded because `golden_roughness_ecma_pipeline.rs`
+had to use a looser tolerance than this crate's other golden-vector tests,
+and that's worth explaining rather than leaving as an unexplained number.
 
 ---
 
