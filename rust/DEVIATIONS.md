@@ -158,6 +158,59 @@ same correction. Entries below are grouped by status: **implemented**,
   section 6.1 compliance procedure (±2 ms realignment, ≤1% of samples
   allowed outside the wider of ±5%/±0.1 sone) with this behaviour in place.
 
+### D-ecma-loud-1 — `_preprocessing.py:28` no longer mutates its input
+
+- **MoSQITo**: `signal[:240] *= w_fadein` applies the 5 ms raised-cosine
+  fade-in *in place* on the caller's own array — the same
+  mutate-a-caller's-array pattern as `conversion/amp2db.py` (D-zwst-2).
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/loudness/ecma/preprocessing.rs`
+  copies `signal` before applying the fade-in.
+- **Why**: same reasoning as D-zwst-2 — a pure-looking function silently
+  mutating a caller's array is a footgun nothing in the pipeline needs.
+- **Measured impact**: none on any output — confirmed by
+  `golden_ecma_loudness.rs`'s end-to-end pipeline cases matching real
+  `mosqito` to ~1e-6 relative.
+
+### Noted, not changed — `_ecma_time_segmentation.py`'s block index formula
+
+`_ecma_time_segmentation.py:64-65` builds each block's sample indices via
+`numpy.linspace(l*sh, l*sh+sb, sb).astype(int32)` rather than the more
+obvious `arange(l*sh, l*sh+sb)`: `sb` points spanning a range of length
+`sb` is a step fractionally *greater* than 1 (`sb/(sb-1)`), so truncating to
+an integer occasionally skips one physical sample near the end of each
+block (a block of "`sb` samples" actually spans `sb+1` positions, with one
+omitted). `mosqito-rs` reproduces this exactly
+(`rust/crates/mosqito-core/src/loudness/ecma/specific_loudness.rs`),
+verified bit-for-bit against `numpy.linspace(...).astype(int32)` across
+several `(sb, sh, n_new)` combinations before ever writing the Rust version,
+and further via the full-pipeline golden vectors in `golden_ecma_loudness.rs`.
+This is **not** recorded as a "bug, kept for now" the way D-tv-1 is: nothing
+in this port's research turned up a reason to believe it diverges from
+ECMA-418-2 §5.1.5 Eqs. 18-20 (unlike `_nonlinear_decay.py`'s wraparound,
+which is visibly an artifact of Python's negative-index semantics with no
+plausible standards grounding). Noted here only so the behaviour is
+documented rather than silently present.
+
+### Scope: scalar `sb`/`sh` only
+
+MoSQITo's `loudness_ecma`, `_band_pass_signals` and `_ecma_time_segmentation`
+all accept either a single block/hop size or a 53-element list (one per
+band, `_ecma_time_segmentation.py:40-48`), producing a potentially ragged
+`N_specific`. `mosqito-rs` only implements the scalar case — the same
+simplification already made for `noct_synthesis` (1-D only) and
+`loudness_zwst_freq` (1-D only): every one of MoSQITo's own callers,
+tests and validation scripts uses a scalar `sb`/`sh` for `loudness_ecma`.
+This also means `N_specific` is a plain `(53, n_blocks)` array here, not a
+list of 53 possibly-different-length arrays — a consequence of the scalar
+restriction, not an independent behavioural choice.
+
+### Dead code not ported — `_band_pass_signals.py`'s `_rectified_band_pass_signals`
+
+A second, unused function duplicating `_band_pass_signals` plus
+rectification and `mosqito.utils.time_segmentation`'s `is_ecma=True` branch.
+`loudness_ecma.py` calls only `_band_pass_signals` (via `_ecma_time_segmentation`
+for the actual segmentation), never this one. Not reproduced.
+
 ---
 
 ## Planned (identified during exploration, not yet implemented)
