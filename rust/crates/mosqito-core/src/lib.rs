@@ -12,6 +12,7 @@
 //! module documentation for the specific conventions that are matched.
 
 pub mod dsp;
+pub mod slm;
 
 /// Re-exported so callers and tests share this crate's complex number type.
 pub use num_complex;
