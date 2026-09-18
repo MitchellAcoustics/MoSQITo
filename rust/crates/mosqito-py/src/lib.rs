@@ -11,6 +11,7 @@
 
 use pyo3::prelude::*;
 
+mod loudness_zwst;
 mod slm;
 
 /// The version of the underlying `mosqito-core` crate.
@@ -24,5 +25,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_function(wrap_pyfunction!(slm::noct_spectrum, m)?)?;
     m.add_function(wrap_pyfunction!(slm::noct_synthesis, m)?)?;
+    m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst, m)?)?;
+    m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst_freq, m)?)?;
+    m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst_perseg, m)?)?;
     Ok(())
 }

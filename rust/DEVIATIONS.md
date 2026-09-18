@@ -45,6 +45,40 @@ same correction. Entries below are grouped by status: **implemented**,
   package by `rust/tools/gen_golden_noct.py`, which asserts the two
   implementations agree on every in-range case before writing the golden file.
 
+### D-zwst-1 — `_calc_slopes.py:112` wraparound made explicit
+
+- **MoSQITo**: `zup_ea` gets a trailing `0` appended and is then indexed with
+  `i-1`, so the lookup for `i=0` relies on Python's negative-index
+  wraparound to reach that trailing `0`.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/loudness/zwst/calc_slopes.rs`
+  computes the same boundary directly (the pre-fill/grid-step algorithm
+  never needs a `zup_ea[i-1]`-shaped lookup at all — see the module's doc
+  comment for why the whole vectorised segment-jump approach was replaced by
+  a position-by-position grid walk).
+- **Why**: no behavioural change; purely a readability/robustness fix so the
+  logic doesn't depend on wraparound.
+- **Measured impact**: none — confirmed via 637 golden `calc_slopes` cases
+  generated from real MoSQITo output (see `tests/golden_zwst.rs`), agreeing
+  to ~1e-9 relative, and against the published ISO 532-1 Annex B2/B3
+  reference values in `tests/conformance_iso532_1.rs`.
+
+### D-zwst-2 — `conversion/amp2db.py:25` no longer mutates its input
+
+- **MoSQITo**: `amp2db` replaces any exact-zero element of its input array
+  *in place* (to avoid a `log10(0)` warning) before computing the result,
+  silently mutating the caller's array as a side effect of what looks like a
+  pure function.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/utils/conversion.rs`
+  applies the same `0.0 -> 2e-12` substitution but only to a local copy,
+  returning a new `Vec` and leaving the caller's slice untouched.
+  `does_not_mutate_its_input` asserts this directly.
+- **Why**: a pure-looking function silently mutating a caller's array is a
+  footgun, and nothing in `loudness_zwst`'s pipeline (the only current
+  caller) depends on the mutation being visible afterwards.
+- **Measured impact**: none on any conformance or golden result — `amp2db`'s
+  *output* is bit-identical either way; only the (unused, in every current
+  call site) mutation of the input is dropped.
+
 ---
 
 ## Planned (identified during exploration, not yet implemented)
@@ -136,14 +170,6 @@ The guard term is written `10e-10` (= 1e-9); almost certainly intended as
 `1e-10`. Low impact; will be decided and recorded (not silently transcribed)
 when the roughness port lands.
 
-### `_calc_slopes.py:112`
-
-`zup_ea` gets a trailing `0` appended and is indexed with `i-1`, relying on
-Python negative-index wraparound at `i=0`. Not a numeric deviation — the
-Rust port will make the same lookup explicit rather than relying on
-wraparound, with no behavioural change. Will land with the `loudness_zwst`
-port.
-
 ### `_nonlinear_decay.py:90-91`
 
 `col-1` at `col=0` wraps to the last column of `uo_mat`/`u2_mat`. Needs
@@ -161,12 +187,6 @@ read unconditionally later. Will be fixed (not reproduced) when the
 
 Duplicated dead resample block (copy-paste artifact, not executed). Not
 reproduced.
-
-### `conversion/amp2db.py:25`
-
-Mutates its input array in place. `mosqito-rs`'s conversions (Phase 2) will
-not do this; noted so nobody relies on the mutation accidentally being
-preserved.
 
 ---
 

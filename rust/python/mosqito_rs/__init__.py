@@ -16,9 +16,18 @@ Casagrande Hirono (INTER-NOISE 2024) — is recorded in ``DEVIATIONS.md``.
 from __future__ import annotations
 
 from . import _core
+from .loudness_zwst import loudness_zwst, loudness_zwst_freq, loudness_zwst_perseg
 from .sound_level_meter import noct_spectrum, noct_synthesis
 
-__all__ = ["__version__", "core_version", "noct_spectrum", "noct_synthesis"]
+__all__ = [
+    "__version__",
+    "core_version",
+    "noct_spectrum",
+    "noct_synthesis",
+    "loudness_zwst",
+    "loudness_zwst_freq",
+    "loudness_zwst_perseg",
+]
 
 __version__ = "0.1.0"
 

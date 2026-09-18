@@ -1,5 +1,42 @@
 //! Interpolation: piecewise linear and monotone piecewise cubic (PCHIP).
 
+/// Piecewise linear interpolation matching `scipy.interpolate.interp1d(xp,
+/// fp, bounds_error=False, fill_value=0)`.
+///
+/// Unlike [`interp`], queries outside `[xp[0], xp[-1]]` return `0.0` rather
+/// than clamping to the nearest endpoint value. `loudness_zwst_freq` uses
+/// this to zero-pad an input spectrum out to the full 24 kHz ISO 532-1
+/// range, and getting the two functions' out-of-range behaviour mixed up
+/// would silently extend the spectrum's edge level instead of padding with
+/// silence.
+///
+/// # Panics
+/// Panics if `xp` is empty or if `xp` and `fp` have different lengths.
+pub fn interp_zero_fill(x: &[f64], xp: &[f64], fp: &[f64]) -> Vec<f64> {
+    assert!(
+        !xp.is_empty(),
+        "interpolation needs at least one sample point"
+    );
+    assert_eq!(xp.len(), fp.len(), "xp and fp must have the same length");
+
+    x.iter()
+        .map(|&q| {
+            if q < xp[0] || q > xp[xp.len() - 1] {
+                return 0.0;
+            }
+            if q == xp[xp.len() - 1] {
+                return fp[fp.len() - 1];
+            }
+            let i = match xp.binary_search_by(|v| v.total_cmp(&q)) {
+                Ok(i) => return fp[i],
+                Err(i) => i - 1,
+            };
+            let t = (q - xp[i]) / (xp[i + 1] - xp[i]);
+            fp[i] + t * (fp[i + 1] - fp[i])
+        })
+        .collect()
+}
+
 /// Piecewise linear interpolation matching `numpy.interp`.
 ///
 /// `xp` must be increasing. Queries outside the range clamp to the endpoint
@@ -112,6 +149,21 @@ mod tests {
         for (g, w) in got.iter().zip(&fp) {
             assert_relative_eq!(g, w, epsilon = 1e-15);
         }
+    }
+
+    #[test]
+    fn interp_zero_fill_zero_pads_outside_the_range() {
+        let xp = [1.0, 2.0];
+        let fp = [10.0, 20.0];
+        assert_eq!(interp_zero_fill(&[-5.0, 99.0], &xp, &fp), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn interp_zero_fill_agrees_with_interp_inside_the_range() {
+        let xp = [0.0, 1.0, 2.0, 4.0];
+        let fp = [0.0, 10.0, 20.0, 40.0];
+        let xq = [0.0, 0.5, 1.5, 4.0];
+        assert_eq!(interp_zero_fill(&xq, &xp, &fp), interp(&xq, &xp, &fp));
     }
 
     #[test]
