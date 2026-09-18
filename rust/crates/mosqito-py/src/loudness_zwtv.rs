@@ -1,21 +1,11 @@
 //! ISO 532-1 time-varying loudness bindings.
 
-use mosqito_core::loudness::zwst::FieldType;
+use crate::parse_field_type;
 use mosqito_core::loudness::zwtv::loudness_zwtv as core_loudness_zwtv;
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-
-fn parse_field_type(s: &str) -> PyResult<FieldType> {
-    match s {
-        "free" => Ok(FieldType::Free),
-        "diffuse" => Ok(FieldType::Diffuse),
-        other => Err(PyValueError::new_err(format!(
-            "field_type must be 'free' or 'diffuse', got {other:?}"
-        ))),
-    }
-}
 
 type LoudnessZwtvResult<'py> = (
     Bound<'py, PyArray1<f64>>,

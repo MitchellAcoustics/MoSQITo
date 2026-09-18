@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import _core
+from ._validation import require_1d
 
 __all__ = [
     "sharpness_din_from_loudness",
@@ -136,10 +137,7 @@ def sharpness_din_freq(
     """
     spectrum = np.asarray(spectrum, dtype=np.float64)
     freqs = np.asarray(freqs, dtype=np.float64)
-    if spectrum.ndim != 1 or freqs.ndim != 1:
-        raise NotImplementedError(
-            "mosqito_rs.sharpness_din_freq currently supports a 1-D spectrum only"
-        )
+    require_1d(spectrum, freqs, fn_name="sharpness_din_freq")
     return _core.sharpness_din_freq(
         np.ascontiguousarray(spectrum),
         np.ascontiguousarray(freqs),

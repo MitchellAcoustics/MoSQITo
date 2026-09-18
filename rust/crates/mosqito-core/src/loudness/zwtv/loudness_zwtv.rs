@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use super::nonlinear_decay::nl_loudness;
 use super::temporal_weighting::temporal_weighting;
 use super::third_octave_levels::{third_octave_levels, ThirdOctaveLevelsError};
-use crate::dsp::resample;
+use crate::dsp::resample_up_to;
 use crate::loudness::zwst::{bark_axis, calc_slopes, main_loudness, FieldType};
 
 /// Errors from [`loudness_zwtv`].
@@ -42,14 +42,7 @@ pub fn loudness_zwtv(
     fs: f64,
     field_type: FieldType,
 ) -> Result<LoudnessZwtvResult, LoudnessZwtvError> {
-    let (signal, fs) = if fs < 48000.0 {
-        (
-            resample(signal, (48000.0 * signal.len() as f64 / fs) as usize),
-            48000.0,
-        )
-    } else {
-        (signal.to_vec(), fs)
-    };
+    let (signal, fs) = resample_up_to(signal, fs, 48000.0);
 
     let (spec_third, time_axis, _nominal_center_freqs) =
         third_octave_levels(&signal, fs).map_err(LoudnessZwtvError::ThirdOctaveLevels)?;

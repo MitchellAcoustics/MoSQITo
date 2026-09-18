@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import _core
+from ._validation import require_1d
 
 __all__ = ["noct_spectrum", "noct_synthesis"]
 
@@ -107,11 +108,7 @@ def noct_synthesis(
     """
     spectrum = np.asarray(spectrum, dtype=np.float64)
     freqs = np.asarray(freqs, dtype=np.float64)
-    if spectrum.ndim != 1 or freqs.ndim != 1:
-        raise NotImplementedError(
-            "mosqito_rs.noct_synthesis currently supports a 1-D spectrum only; "
-            "the 2-D (per-segment) case has not been ported yet"
-        )
+    require_1d(spectrum, freqs, fn_name="noct_synthesis")
 
     spec, fpref = _core.noct_synthesis(
         np.ascontiguousarray(spectrum),

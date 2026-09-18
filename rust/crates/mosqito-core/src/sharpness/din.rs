@@ -79,6 +79,22 @@ fn g(weighting: Weighting, z: f64, n: f64) -> f64 {
     }
 }
 
+/// `g(weighting, z[k], n)` for every `k`, over the full 240-point Bark axis.
+///
+/// The Fastl weighting is interpolated once for the whole axis instead of via
+/// 240 (or, per segment, `nseg * 240`) individual single-point calls into
+/// [`interp`], each of which would otherwise allocate its own length-1 `Vec`
+/// and binary-search `FASTL_X` from scratch; the other three weightings are
+/// cheap closed-form expressions with no such per-point cost to hoist.
+fn weighting_values(weighting: Weighting, z: &[f64; 240], n: f64) -> [f64; 240] {
+    if weighting == Weighting::Fastl {
+        let interpolated = interp(z, &FASTL_X, &FASTL_Y);
+        std::array::from_fn(|k| interpolated[k])
+    } else {
+        std::array::from_fn(|k| g(weighting, z[k], n))
+    }
+}
+
 /// Sharpness from a single loudness result, matching
 /// `sharpness_din_from_loudness(N, N_specific, weighting)` for scalar `N`
 /// (the `S.size == 1` branch, which — for every real caller, since it is
@@ -87,8 +103,9 @@ fn g(weighting: Weighting, z: f64, n: f64) -> f64 {
 /// masking the segmented branch below does).
 pub fn sharpness_din_from_loudness(n: f64, n_specific: &[f64; 240], weighting: Weighting) -> f64 {
     let z = bark_axis();
+    let g_vals = weighting_values(weighting, &z, n);
     let acc: f64 = (0..240)
-        .map(|k| n_specific[k] * g(weighting, z[k], n) * z[k] * 0.1)
+        .map(|k| n_specific[k] * g_vals[k] * z[k] * 0.1)
         .sum();
     0.11 * acc / n
 }
@@ -120,8 +137,9 @@ pub fn sharpness_din_from_loudness_segmented(
             if n_seg < 0.1 {
                 return 0.0;
             }
+            let g_vals = weighting_values(weighting, &z, n_seg);
             let acc: f64 = (0..240)
-                .map(|k| n_specific[[k, seg]] * g(weighting, z[k], n_seg) * z[k] * 0.1)
+                .map(|k| n_specific[[k, seg]] * g_vals[k] * z[k] * 0.1)
                 .sum();
             0.11 * acc / n_seg
         })

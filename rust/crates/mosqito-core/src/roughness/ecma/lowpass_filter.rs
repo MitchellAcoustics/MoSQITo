@@ -36,12 +36,11 @@ pub fn lowpass_filter(r_hat: &[Vec<f64>]) -> Vec<Vec<f64>> {
         return Vec::new();
     }
     let cbf = r_hat[0].len();
-    let mut out = Vec::with_capacity(r_hat.len());
-
-    let mut prev = r_hat[0].clone();
-    out.push(prev.clone());
+    let mut out: Vec<Vec<f64>> = Vec::with_capacity(r_hat.len());
+    out.push(r_hat[0].clone());
 
     for row in &r_hat[1..] {
+        let prev = out.last().expect("out is never empty here");
         let mut cur = vec![0.0f64; cbf];
         for z in 0..cbf {
             let rising = row[z] >= prev[z];
@@ -49,8 +48,7 @@ pub fn lowpass_filter(r_hat: &[Vec<f64>]) -> Vec<Vec<f64>> {
             let e = (-1.0 / (50.0 * tau)).exp();
             cur[z] = row[z] * (1.0 - e) + prev[z] * e;
         }
-        out.push(cur.clone());
-        prev = cur;
+        out.push(cur);
     }
 
     out

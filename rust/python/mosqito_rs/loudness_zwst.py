@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import _core
+from ._validation import require_1d
 
 __all__ = ["loudness_zwst", "loudness_zwst_freq", "loudness_zwst_perseg"]
 
@@ -71,11 +72,7 @@ def loudness_zwst_freq(
     """
     spectrum = np.asarray(spectrum, dtype=np.float64)
     freqs = np.asarray(freqs, dtype=np.float64)
-    if spectrum.ndim != 1 or freqs.ndim != 1:
-        raise NotImplementedError(
-            "mosqito_rs.loudness_zwst_freq currently supports a 1-D spectrum only; "
-            "the 2-D (per-segment) case has not been ported yet"
-        )
+    require_1d(spectrum, freqs, fn_name="loudness_zwst_freq")
     return _core.loudness_zwst_freq(
         np.ascontiguousarray(spectrum), np.ascontiguousarray(freqs), str(field_type)
     )

@@ -110,6 +110,33 @@ pub fn resample(x: &[f64], num: usize) -> Vec<f64> {
     out.iter().map(|v| v * scale).collect()
 }
 
+/// Resamples to `target_fs` only if `fs` is below it, matching the
+/// "resample first if fs < target" guard `loudness_zwst`/`loudness_zwtv`'s
+/// Python applies before their own processing (e.g. `loudness_zwst.py:96-103`).
+///
+/// Returns the (possibly unchanged) signal and the sample rate it is now at.
+pub fn resample_up_to(signal: &[f64], fs: f64, target_fs: f64) -> (Vec<f64>, f64) {
+    if fs < target_fs {
+        (
+            resample(signal, (target_fs * signal.len() as f64 / fs) as usize),
+            target_fs,
+        )
+    } else {
+        (signal.to_vec(), fs)
+    }
+}
+
+/// Resamples to `target_fs` whenever `fs` differs from it, matching the
+/// "resample first if fs != target" guard `loudness_ecma`/`roughness_ecma`'s
+/// Python applies (e.g. `loudness_ecma.py:93-100`).
+pub fn resample_to(signal: &[f64], fs: f64, target_fs: f64) -> Vec<f64> {
+    if fs != target_fs {
+        resample(signal, (target_fs * signal.len() as f64 / fs) as usize)
+    } else {
+        signal.to_vec()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

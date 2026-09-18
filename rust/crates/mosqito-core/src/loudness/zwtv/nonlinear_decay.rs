@@ -125,19 +125,31 @@ pub fn nl_loudness(core_loudness: &Array2<f64>) -> Array2<f64> {
     let mut uo_cur = vec![0.0f64; nm_wide];
     let mut u2_cur = vec![0.0f64; nm_wide];
 
+    let mut cur_val = vec![0.0f64; nm_wide];
+    let mut delta = vec![0.0f64; nm_wide];
+
     for col in 0..total_cols {
         let t = col / NL_ITER;
         let i_in = col % NL_ITER;
 
+        // `cur_val`/`delta` depend only on `t`, not `i_in`: recompute them
+        // once per frame rather than on every one of the `NL_ITER` upsampled
+        // steps within it.
+        if i_in == 0 {
+            for row in 0..nm_wide {
+                let c = core_loudness[[row, t]];
+                let next_val = if t + 1 < ntime {
+                    core_loudness[[row, t + 1]]
+                } else {
+                    0.0
+                };
+                cur_val[row] = c;
+                delta[row] = (next_val - c) / NL_ITER as f64;
+            }
+        }
+
         for row in 0..nm_wide {
-            let cur_val = core_loudness[[row, t]];
-            let next_val = if t + 1 < ntime {
-                core_loudness[[row, t + 1]]
-            } else {
-                0.0
-            };
-            let delta = (next_val - cur_val) / NL_ITER as f64;
-            let ui = cur_val + i_in as f64 * delta;
+            let ui = cur_val[row] + i_in as f64 * delta[row];
 
             let (o, u2) = nl_step(uo_prev[row], u2_prev[row], ui, &b);
             uo_cur[row] = o;

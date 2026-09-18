@@ -27,3 +27,9 @@ pub const LTQ_Z: [f64; 53] = [
     0.0172, 0.018, 0.018, 0.0177, 0.0176, 0.0177, 0.0182, 0.019, 0.0202, 0.0217, 0.0237, 0.0263,
     0.0296, 0.0339, 0.0398, 0.0485, 0.0622,
 ];
+
+/// The 53-band Bark axis every ECMA-418-2 specific-value output (loudness,
+/// roughness) shares: band centres at 0.5, 1.0, ..., 26.5 Bark_HMS.
+pub fn bark_axis_53() -> [f64; 53] {
+    std::array::from_fn(|i| 0.5 + i as f64 * 0.5)
+}

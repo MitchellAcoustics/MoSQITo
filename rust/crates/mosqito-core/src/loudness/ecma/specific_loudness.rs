@@ -44,10 +44,18 @@ pub fn n_blocks(n_new: usize, sh: usize) -> usize {
     (n_new + sh).div_ceil(sh) - 1
 }
 
+/// The fractional-step constant `block_sample_index` advances by per `k`,
+/// `sb/(sb-1)` — depends only on `sb`, so callers that index many `(l, k)`
+/// pairs for the same `sb` (every one of them, in practice) compute it once
+/// with this and pass it to [`block_sample_index`] rather than recomputing
+/// the same division on every call.
+pub fn block_step(sb: usize) -> f64 {
+    sb as f64 / (sb - 1) as f64
+}
+
 /// The sample index of position `k` (`0..sb`) within block `l`, per the
-/// block index formula documented on this module.
-pub fn block_sample_index(l: usize, k: usize, sh: usize, sb: usize) -> usize {
-    let step = sb as f64 / (sb - 1) as f64;
+/// block index formula documented on this module. `step` is [`block_step`]`(sb)`.
+pub fn block_sample_index(l: usize, k: usize, sh: usize, step: f64) -> usize {
     ((l * sh) as f64 + k as f64 * step).floor() as usize
 }
 
@@ -68,6 +76,7 @@ pub fn specific_loudness_for_band(
     ltq_z: f64,
 ) -> (Vec<f64>, Vec<f64>) {
     let blocks = n_blocks(n_new, sh);
+    let step = block_step(sb);
 
     let mut n_specific = Vec::with_capacity(blocks);
     let mut time_axis = Vec::with_capacity(blocks);
@@ -76,7 +85,7 @@ pub fn specific_loudness_for_band(
         let mut sum_sq = 0.0f64;
         let mut sum_t = 0.0f64;
         for k in 0..sb {
-            let idx = block_sample_index(l, k, sh, sb);
+            let idx = block_sample_index(l, k, sh, step);
             let v = band_pass_signal[idx].max(0.0);
             sum_sq += v * v;
             sum_t += idx as f64 / FS;

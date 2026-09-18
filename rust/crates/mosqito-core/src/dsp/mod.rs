@@ -15,7 +15,7 @@ pub mod peaks;
 pub mod stats;
 
 pub use design::{butter_bandpass_sos, butter_lowpass_sos, cheby1_lowpass, sosfreqz, Sos};
-pub use fft::{hilbert_envelope, resample};
+pub use fft::{hilbert_envelope, resample, resample_to, resample_up_to};
 pub use filter::{decimate, filtfilt, lfilter, lfilter_complex, sosfilt, sosfiltfilt};
 pub use interp::{interp, interp_zero_fill, pchip};
 pub use peaks::{find_peaks_with_prominence, Peak};

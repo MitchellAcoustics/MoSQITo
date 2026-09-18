@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use super::calc_slopes::calc_slopes;
 use super::main_loudness::{main_loudness, FieldType};
-use crate::dsp::{interp_zero_fill, resample};
+use crate::dsp::{interp_zero_fill, resample_up_to};
 use crate::slm::noct::{noct_spectrum, NoctError};
 use crate::utils::{amp2db, time_segmentation};
 
@@ -62,14 +62,7 @@ pub fn loudness_zwst(
     fs: f64,
     field_type: FieldType,
 ) -> (f64, [f64; 240], [f64; 240]) {
-    let (signal, fs) = if fs < 48000.0 {
-        (
-            resample(signal, (48000.0 * signal.len() as f64 / fs) as usize),
-            48000.0,
-        )
-    } else {
-        (signal.to_vec(), fs)
-    };
+    let (signal, fs) = resample_up_to(signal, fs, 48000.0);
 
     let sig2d = Array2::from_shape_vec((signal.len(), 1), signal).expect("column signal");
     let (spec_third, _freq) =
@@ -175,14 +168,7 @@ pub fn loudness_zwst_perseg(
     noverlap: Option<usize>,
     field_type: FieldType,
 ) -> Result<PersegResult, LoudnessZwstError> {
-    let (signal, fs) = if fs < 48000.0 {
-        (
-            resample(signal, (48000.0 * signal.len() as f64 / fs) as usize),
-            48000.0,
-        )
-    } else {
-        (signal.to_vec(), fs)
-    };
+    let (signal, fs) = resample_up_to(signal, fs, 48000.0);
 
     let (blocks, time_axis) = time_segmentation(&signal, fs, nperseg, noverlap);
     let nseg = blocks.ncols();

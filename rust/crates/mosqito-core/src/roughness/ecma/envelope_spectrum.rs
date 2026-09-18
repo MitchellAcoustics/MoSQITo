@@ -7,7 +7,7 @@ use realfft::RealFftPlanner;
 
 use super::von_hann_window::von_hann_window;
 use crate::dsp::{decimate, hilbert_envelope};
-use crate::loudness::ecma::{block_sample_index, n_blocks};
+use crate::loudness::ecma::{block_sample_index, block_step, n_blocks};
 
 /// Downsampled envelope block length (`sbb` in the standard): 16384 / 32.
 pub const SBB: usize = 512;
@@ -35,6 +35,7 @@ pub struct BandSpectrum {
 /// its scaled power spectrum.
 pub fn band_spectrum(band_pass_signal: &[f64], sb: usize, sh: usize, n_new: usize) -> BandSpectrum {
     let blocks = n_blocks(n_new, sh);
+    let step = block_step(sb);
     let hann = von_hann_window(SBB);
 
     let mut dft = Array2::<f64>::zeros((blocks, N_BINS));
@@ -45,7 +46,7 @@ pub fn band_spectrum(band_pass_signal: &[f64], sb: usize, sh: usize, n_new: usiz
 
     for l in 0..blocks {
         let block: Vec<f64> = (0..sb)
-            .map(|k| band_pass_signal[block_sample_index(l, k, sh, sb)])
+            .map(|k| band_pass_signal[block_sample_index(l, k, sh, step)])
             .collect();
 
         let envelope = hilbert_envelope(&block);

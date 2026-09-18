@@ -9,22 +9,12 @@
 //! `loudness_zwst`'s bindings keep MoSQITo's own signature fidelity one
 //! layer up.
 
-use mosqito_core::loudness::zwst::FieldType;
+use crate::parse_field_type;
 use mosqito_core::sharpness::din::{self as core_din, Weighting};
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-
-fn parse_field_type(s: &str) -> PyResult<FieldType> {
-    match s {
-        "free" => Ok(FieldType::Free),
-        "diffuse" => Ok(FieldType::Diffuse),
-        other => Err(PyValueError::new_err(format!(
-            "field_type must be 'free' or 'diffuse', got {other:?}"
-        ))),
-    }
-}
 
 fn parse_weighting(s: &str) -> PyResult<Weighting> {
     Weighting::parse(s).map_err(PyValueError::new_err)

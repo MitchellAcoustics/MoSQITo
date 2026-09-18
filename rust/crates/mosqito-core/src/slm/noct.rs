@@ -20,7 +20,7 @@ use ndarray::{Array2, ArrayView1, ArrayView2};
 use rayon::prelude::*;
 use std::f64::consts::PI;
 
-use crate::dsp::{butter_bandpass_sos, decimate, sosfilt, sosfreqz};
+use crate::dsp::{butter_bandpass_sos, decimate, sosfilt, sosfreqz, Sos};
 
 /// Filter order used throughout: MoSQITo always designs order-3 filters here
 /// (`_n_oct_time_filter`'s `N=3` default, never overridden by its callers).
@@ -178,16 +178,19 @@ pub fn filter_bandwidth(fc: &[f64], n: u32) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     (alpha, f1v, f2v)
 }
 
-/// RMS level of one channel in the band centred at `fc`, via time-domain
-/// filtering. Mirrors `_n_oct_time_filter`: decimates first when `fc` is far
-/// below `fs`, to keep the bandpass design well conditioned, then filters and
-/// takes the RMS.
-fn n_oct_time_filter_column(
-    sig: ArrayView1<f64>,
-    fs: f64,
-    fc: f64,
-    alpha: f64,
-) -> Result<f64, NoctError> {
+/// A band's time-domain filter design (decimation factor + bandpass SOS),
+/// shared across every segment `noct_spectrum` filters in that band — the
+/// design depends only on `fs`/`fc`/`alpha`, none of which vary by segment.
+struct TimeFilterDesign {
+    /// Decimation factor applied before filtering (1 = no decimation).
+    q: usize,
+    sos: Vec<Sos>,
+}
+
+/// Designs one band's time-domain filter. Mirrors `_n_oct_time_filter`:
+/// decimates first when `fc` is far below `fs`, to keep the bandpass design
+/// well conditioned.
+fn time_filter_design(fs: f64, fc: f64, alpha: f64) -> Result<TimeFilterDesign, NoctError> {
     if fc > 0.88 * (fs / 2.0) {
         return Err(NoctError::CenterFrequencyTooHigh {
             fc,
@@ -195,21 +198,36 @@ fn n_oct_time_filter_column(
         });
     }
 
-    let mut signal = sig.to_vec();
+    let mut q = 1usize;
     let mut fs_eff = fs;
     if fc < fs / 200.0 {
-        let mut q = 2usize;
+        q = 2usize;
         while fc < fs / q as f64 / 200.0 {
             q += 1;
         }
-        signal = decimate(&signal, q).ok_or(NoctError::SignalTooShort)?;
         fs_eff = fs / q as f64;
     }
 
     let w1 = fc / (fs_eff / 2.0) / alpha;
     let w2 = fc / (fs_eff / 2.0) * alpha;
-    let sos = butter_bandpass_sos(FILTER_ORDER, w1, w2);
-    let filtered = sosfilt(&sos, &signal);
+    Ok(TimeFilterDesign {
+        q,
+        sos: butter_bandpass_sos(FILTER_ORDER, w1, w2),
+    })
+}
+
+/// RMS level of one channel in the band `design` was built for.
+fn n_oct_time_filter_column(
+    sig: ArrayView1<f64>,
+    design: &TimeFilterDesign,
+) -> Result<f64, NoctError> {
+    let signal = if design.q > 1 {
+        decimate(&sig.to_vec(), design.q).ok_or(NoctError::SignalTooShort)?
+    } else {
+        sig.to_vec()
+    };
+
+    let filtered = sosfilt(&design.sos, &signal);
     let rms = (filtered.iter().map(|v| v * v).sum::<f64>() / filtered.len() as f64).sqrt();
     Ok(rms)
 }
@@ -256,8 +274,9 @@ pub fn noct_spectrum(
         .par_iter()
         .zip(alpha.par_iter())
         .map(|(&fc, &al)| -> Result<Vec<f64>, NoctError> {
+            let design = time_filter_design(fs, fc, al)?;
             (0..nseg)
-                .map(|c| n_oct_time_filter_column(sig.column(c), fs, fc, al))
+                .map(|c| n_oct_time_filter_column(sig.column(c), &design))
                 .collect()
         })
         .collect::<Result<Vec<_>, _>>()?;

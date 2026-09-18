@@ -7,8 +7,8 @@ use rayon::prelude::*;
 use super::band_pass_signals::band_pass_signals;
 use super::preprocessing::preprocess;
 use super::specific_loudness::specific_loudness_for_band;
-use super::tables::LTQ_Z;
-use crate::dsp::resample;
+use super::tables::{bark_axis_53, LTQ_Z};
+use crate::dsp::resample_to;
 
 const FS_ECMA: f64 = 48000.0;
 
@@ -24,11 +24,7 @@ type LoudnessEcmaResult = (f64, Vec<f64>, Array2<f64>, [f64; 53], Vec<f64>);
 ///
 /// Resamples to 48 kHz first if `fs != 48000` (`loudness_ecma.py:93-100`).
 pub fn loudness_ecma(signal: &[f64], fs: f64, sb: usize, sh: usize) -> LoudnessEcmaResult {
-    let signal = if fs != FS_ECMA {
-        resample(signal, (FS_ECMA * signal.len() as f64 / fs) as usize)
-    } else {
-        signal.to_vec()
-    };
+    let signal = resample_to(signal, fs, FS_ECMA);
 
     let (padded, n_new) = preprocess(&signal, sb, sh);
     let bandpass = band_pass_signals(&padded, FS_ECMA);
@@ -58,7 +54,5 @@ pub fn loudness_ecma(signal: &[f64], fs: f64, sb: usize, sh: usize) -> LoudnessE
     let mean_pow = n_time.iter().map(|&v| v.powf(exponent)).sum::<f64>() / n_blocks as f64;
     let n = mean_pow.powf(1.0 / exponent);
 
-    let bark_axis: [f64; 53] = std::array::from_fn(|i| 0.5 + i as f64 * 0.5);
-
-    (n, n_time, n_specific, bark_axis, time_axis)
+    (n, n_time, n_specific, bark_axis_53(), time_axis)
 }

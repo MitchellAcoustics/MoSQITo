@@ -14,6 +14,9 @@
 //!   initialises the filter state from the signal edge, matching
 //!   `scipy.signal.filtfilt(..., padtype="odd")`.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use num_complex::Complex64;
 
 /// Applies an IIR filter along a signal using the transposed direct-form II
@@ -288,34 +291,7 @@ fn sosfilt_with_zi(sos: &[[f64; 6]], x: &[f64], zi: &[[f64; 2]], x0: f64) -> Vec
     for (s, z) in sos.iter().zip(zi) {
         let b = [s[0], s[1], s[2]];
         let a = [s[3], s[4], s[5]];
-        let state = [z[0] * x0, z[1] * x0];
-        y = lfilter_with_state(&b, &a, &y, &state);
-    }
-    y
-}
-
-/// `lfilter` started from an explicit transposed-direct-form-II state.
-fn lfilter_with_state(b: &[f64], a: &[f64], x: &[f64], zi: &[f64]) -> Vec<f64> {
-    let n = b.len().max(a.len());
-    let a0 = a[0];
-    let bn: Vec<f64> = (0..n)
-        .map(|i| b.get(i).copied().unwrap_or(0.0) / a0)
-        .collect();
-    let an: Vec<f64> = (0..n)
-        .map(|i| a.get(i).copied().unwrap_or(0.0) / a0)
-        .collect();
-
-    let mut z = zi.to_vec();
-    z.resize(n.saturating_sub(1), 0.0);
-
-    let mut y = Vec::with_capacity(x.len());
-    for &xi in x {
-        let yi = bn[0] * xi + z.first().copied().unwrap_or(0.0);
-        for k in 0..z.len() {
-            let next = z.get(k + 1).copied().unwrap_or(0.0);
-            z[k] = bn[k + 1] * xi + next - an[k + 1] * yi;
-        }
-        y.push(yi);
+        y = lfilter_with_zi(&b, &a, &y, z, x0);
     }
     y
 }
@@ -368,9 +344,28 @@ pub fn decimate(x: &[f64], q: usize) -> Option<Vec<f64>> {
     if q == 1 {
         return Some(x.to_vec());
     }
-    let sos = crate::dsp::design::cheby1_lowpass(8, 0.05, 0.8 / q as f64);
+    let sos = decimate_filter_design(q);
     let filtered = sosfiltfilt(&sos, x)?;
     Some(filtered.iter().step_by(q).copied().collect())
+}
+
+/// `decimate`'s anti-alias filter, memoised by `q`.
+///
+/// Only `q` varies call to call (the order and ripple are `decimate`'s own
+/// fixed constants); every caller that decimates by a given factor
+/// repeatedly — e.g. once per block, per critical band, in ECMA-418-2
+/// roughness's envelope pipeline — would otherwise redesign the identical
+/// Chebyshev-I cascade (pole/zero computation, bilinear transform, SOS
+/// pairing) from scratch on every call.
+fn decimate_filter_design(q: usize) -> Vec<crate::dsp::design::Sos> {
+    static CACHE: OnceLock<Mutex<HashMap<usize, Vec<crate::dsp::design::Sos>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    cache
+        .lock()
+        .expect("decimate filter cache poisoned")
+        .entry(q)
+        .or_insert_with(|| crate::dsp::design::cheby1_lowpass(8, 0.05, 0.8 / q as f64))
+        .clone()
 }
 
 /// Extends a signal at both ends by an odd reflection about its endpoints,

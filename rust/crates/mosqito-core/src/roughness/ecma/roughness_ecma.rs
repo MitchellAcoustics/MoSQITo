@@ -14,9 +14,9 @@ use super::peak_picking::peak_picking;
 use super::weighting::{
     f_max, high_mod_rate_weighting, low_mod_rate_weighting, q2_high, q2_low, r_max,
 };
-use crate::dsp::{pchip, percentile_linear, resample};
+use crate::dsp::{pchip, percentile_linear, resample_to};
 use crate::loudness::ecma::{
-    auditory_filters_centre_freq, band_pass_signals, n_blocks, preprocess,
+    auditory_filters_centre_freq, band_pass_signals, bark_axis_53, n_blocks, preprocess,
     specific_loudness_for_band, LTQ_Z,
 };
 
@@ -44,11 +44,7 @@ type RoughnessEcmaResult = (f64, Vec<f64>, [f64; CBF], [f64; CBF], Vec<f64>);
 /// Resamples to 48 kHz first if `fs != 48000`.
 pub fn roughness_ecma(signal: &[f64], fs: f64) -> RoughnessEcmaResult {
     let signal_orig_len = signal.len();
-    let signal = if fs != FS_ECMA {
-        resample(signal, (FS_ECMA * signal.len() as f64 / fs) as usize)
-    } else {
-        signal.to_vec()
-    };
+    let signal = resample_to(signal, fs, FS_ECMA);
     let duration = signal_orig_len as f64 / fs;
 
     let centre_freq = auditory_filters_centre_freq();
@@ -139,11 +135,18 @@ pub fn roughness_ecma(signal: &[f64], fs: f64) -> RoughnessEcmaResult {
     let n50 = (duration * 50.0) as usize;
     let t_50: Vec<f64> = (0..n50).map(|i| i as f64 / 50.0).collect();
 
+    // Interpolation per band is independent (no cross-band coupling), so it
+    // runs in parallel across `CBF`, matching the rest of this pipeline.
+    let per_band_interp: Vec<Vec<f64>> = (0..CBF)
+        .into_par_iter()
+        .map(|z| {
+            let y: Vec<f64> = (0..l).map(|t| amplitude[[t, z]]).collect();
+            pchip(&time_axis, &y, &t_50)
+        })
+        .collect();
     let mut r_est = vec![vec![0.0f64; CBF]; n50];
-    for z in 0..CBF {
-        let y: Vec<f64> = (0..l).map(|t| amplitude[[t, z]]).collect();
-        let interpolated = pchip(&time_axis, &y, &t_50);
-        for (t, &v) in interpolated.iter().enumerate() {
+    for (z, interpolated) in per_band_interp.into_iter().enumerate() {
+        for (t, v) in interpolated.into_iter().enumerate() {
             r_est[t][z] = v.max(0.0);
         }
     }
@@ -170,7 +173,5 @@ pub fn roughness_ecma(signal: &[f64], fs: f64) -> RoughnessEcmaResult {
         percentile_linear(&r_time, 90.0)
     };
 
-    let bark_axis: [f64; CBF] = std::array::from_fn(|i| 0.5 + i as f64 * 0.5);
-
-    (r, r_time, r_spec, bark_axis, t_50)
+    (r, r_time, r_spec, bark_axis_53(), t_50)
 }

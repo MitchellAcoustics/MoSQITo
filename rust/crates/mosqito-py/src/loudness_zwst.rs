@@ -6,21 +6,12 @@
 //! `field_type` validation messages, etc.) — so these keep ordinary Rust
 //! naming and positional calling.
 
-use mosqito_core::loudness::zwst::{self as core_zwst, FieldType};
+use crate::parse_field_type;
+use mosqito_core::loudness::zwst as core_zwst;
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-
-fn parse_field_type(s: &str) -> PyResult<FieldType> {
-    match s {
-        "free" => Ok(FieldType::Free),
-        "diffuse" => Ok(FieldType::Diffuse),
-        other => Err(PyValueError::new_err(format!(
-            "field_type must be 'free' or 'diffuse', got {other:?}"
-        ))),
-    }
-}
 
 type Loudness = f64;
 type Specific<'py> = Bound<'py, PyArray1<f64>>;

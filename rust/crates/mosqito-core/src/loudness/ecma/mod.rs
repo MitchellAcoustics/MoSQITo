@@ -16,5 +16,5 @@ pub use gammatone::gammatone;
 pub use loudness_ecma::loudness_ecma;
 pub use nonlinearity::nonlinearity;
 pub use preprocessing::preprocess;
-pub use specific_loudness::{block_sample_index, n_blocks, specific_loudness_for_band};
-pub use tables::LTQ_Z;
+pub use specific_loudness::{block_sample_index, block_step, n_blocks, specific_loudness_for_band};
+pub use tables::{bark_axis_53, LTQ_Z};

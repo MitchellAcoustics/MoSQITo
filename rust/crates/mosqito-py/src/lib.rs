@@ -9,6 +9,8 @@
 //! keyword-argument names and casing) is handled one layer up, in
 //! `python/mosqito_rs/`, not here.
 
+use mosqito_core::loudness::zwst::FieldType;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 mod loudness_ecma;
@@ -17,6 +19,18 @@ mod loudness_zwtv;
 mod roughness_ecma;
 mod sharpness_din;
 mod slm;
+
+/// Parses MoSQITo's `field_type` string argument, shared by every binding
+/// that takes it (`loudness_zwst*`, `loudness_zwtv`, `sharpness_din*`).
+fn parse_field_type(s: &str) -> PyResult<FieldType> {
+    match s {
+        "free" => Ok(FieldType::Free),
+        "diffuse" => Ok(FieldType::Diffuse),
+        other => Err(PyValueError::new_err(format!(
+            "field_type must be 'free' or 'diffuse', got {other:?}"
+        ))),
+    }
+}
 
 /// The version of the underlying `mosqito-core` crate.
 #[pyfunction]

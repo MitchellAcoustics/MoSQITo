@@ -4,7 +4,7 @@ pub mod calc_slopes;
 pub mod loudness_zwst;
 pub mod main_loudness;
 
-pub use calc_slopes::{calc_slopes, loudness_from_spectrum};
+pub use calc_slopes::calc_slopes;
 pub use loudness_zwst::{
     bark_axis, loudness_zwst, loudness_zwst_freq, loudness_zwst_perseg, LoudnessZwstError,
 };

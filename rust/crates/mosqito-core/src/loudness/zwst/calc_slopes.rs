@@ -37,8 +37,6 @@
 //!
 //! [`main_loudness`]: crate::loudness::zwst::main_loudness
 
-use super::main_loudness::main_loudness;
-
 const N_SPECIFIC_LEN: usize = 240;
 
 /// Upper limits of the 21 critical bands, in Bark.
@@ -284,20 +282,10 @@ pub fn calc_slopes(nm: &[f64; 21]) -> (f64, [f64; N_SPECIFIC_LEN]) {
     (n_total, n_specific)
 }
 
-/// Convenience: core loudness followed by slope attachment, matching what
-/// `loudness_zwst` does with a single third-octave spectrum in dB.
-pub fn loudness_from_spectrum(
-    spec_third: &[f64],
-    field_type: super::main_loudness::FieldType,
-) -> (f64, [f64; N_SPECIFIC_LEN]) {
-    let nm = main_loudness(spec_third, field_type);
-    calc_slopes(&nm)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::loudness::zwst::FieldType;
+    use crate::loudness::zwst::{main_loudness::main_loudness, FieldType};
 
     #[test]
     fn silence_gives_zero_loudness() {
@@ -320,7 +308,8 @@ mod tests {
         // spectrum should land in a physically reasonable sone range, not
         // some wildly wrong magnitude from a boundary-arithmetic slip.
         let spec = [60.0; 28];
-        let (n, _) = loudness_from_spectrum(&spec, FieldType::Free);
+        let nm = main_loudness(&spec, FieldType::Free);
+        let (n, _) = calc_slopes(&nm);
         assert!(
             n > 1.0 && n < 100.0,
             "N = {n} sone is not plausible for a 60 dB flat spectrum"
