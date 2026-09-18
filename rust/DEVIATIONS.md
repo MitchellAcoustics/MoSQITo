@@ -79,6 +79,43 @@ same correction. Entries below are grouped by status: **implemented**,
   *output* is bit-identical either way; only the (unused, in every current
   call site) mutation of the input is dropped.
 
+### D-din-1 — `sharpness_din_from_loudness.py:114/146` `UnboundLocalError` for 2-D `N`
+
+- **MoSQITo**: `ind = where(N < 0.1)` is only computed when `N.ndim <= 1`
+  (true for every value MoSQITo's own callers actually pass), but read
+  unconditionally in the `else` branch at line 146 — a 2-D `N` (which no
+  shipped entry point produces, but which a caller invoking
+  `sharpness_din_from_loudness` directly with a pre-shaped array could) would
+  raise `UnboundLocalError`, not a meaningful error message.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/sharpness/din.rs` has no
+  such state — `sharpness_din_from_loudness` (scalar) and
+  `sharpness_din_from_loudness_segmented` (per-segment, always masks `N <
+  0.1`) are two separate functions with no shared mutable binding; the
+  Python wrapper (`python/mosqito_rs/sharpness_din.py`) dispatches between
+  them on `N`'s size, matching Python's actual `S.size == 1` dispatch rather
+  than its `N.ndim` precondition for computing `ind`.
+- **Why**: not a standards question, just a latent crash on an input shape
+  none of MoSQITo's own code produces.
+- **Measured impact**: none on any conformance or differential result — every
+  real caller (`sharpness_din_st`, `_freq`, `_perseg`) passes `N` with
+  `ndim <= 1`, the only shape MoSQITo's own code path actually exercises.
+
+### D-din-2 — `sharpness_din_st.py:97-113` duplicated resample block dropped
+
+- **MoSQITo**: resamples to 48 kHz itself (two copies of an identical
+  `if fs < 48000: resample(...)` block, the second always a no-op since the
+  first already updated `fs`) before calling `loudness_zwst`, which resamples
+  to 48 kHz internally anyway if it still needs to.
+- **`mosqito-rs`**: `sharpness_din_st` calls `loudness_zwst` directly; the
+  single resample happens there.
+- **Why**: the duplicate block is dead code (a copy-paste artifact), and the
+  single live copy is itself redundant with `loudness_zwst`'s own resampling
+  — there is exactly one resample either way, so this is a no-op
+  simplification, not a behavioural change.
+- **Measured impact**: none — `sharpness_din_st_matches_din_45692_broadband_noise_reference_values`/`_narrowband_noise_reference_values`
+  (41 DIN 45692 signals, `tests/conformance_sharpness_din.rs`) and the
+  differential test against installed `mosqito` both pass at ~1e-9 relative.
+
 ---
 
 ## Planned (identified during exploration, not yet implemented)
@@ -176,17 +213,6 @@ when the roughness port lands.
 verification during the `loudness_zwtv` port as to whether this is load-bearing
 (the arrays may be zero-initialized such that it's inert) or a real bug;
 recorded here as a flag to check, not yet a resolved entry.
-
-### `sharpness_din_from_loudness.py:114/146`
-
-`UnboundLocalError` for 2-D `N` — `ind` is only bound when `N.ndim <= 1` but
-read unconditionally later. Will be fixed (not reproduced) when the
-`sharpness_din` port lands, since there is no standards question here at all.
-
-### `sharpness_din_st.py:97-113`
-
-Duplicated dead resample block (copy-paste artifact, not executed). Not
-reproduced.
 
 ---
 

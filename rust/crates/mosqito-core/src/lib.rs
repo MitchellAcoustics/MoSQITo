@@ -13,6 +13,7 @@
 
 pub mod dsp;
 pub mod loudness;
+pub mod sharpness;
 pub mod slm;
 pub mod utils;
 

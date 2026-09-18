@@ -17,6 +17,13 @@ from __future__ import annotations
 
 from . import _core
 from .loudness_zwst import loudness_zwst, loudness_zwst_freq, loudness_zwst_perseg
+from .sharpness_din import (
+    sharpness_din_freq,
+    sharpness_din_from_loudness,
+    sharpness_din_perseg,
+    sharpness_din_st,
+    sharpness_din_tv,
+)
 from .sound_level_meter import noct_spectrum, noct_synthesis
 
 __all__ = [
@@ -27,6 +34,11 @@ __all__ = [
     "loudness_zwst",
     "loudness_zwst_freq",
     "loudness_zwst_perseg",
+    "sharpness_din_from_loudness",
+    "sharpness_din_st",
+    "sharpness_din_freq",
+    "sharpness_din_perseg",
+    "sharpness_din_tv",
 ]
 
 __version__ = "0.1.0"

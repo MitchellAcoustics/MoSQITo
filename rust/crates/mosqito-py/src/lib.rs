@@ -12,6 +12,7 @@
 use pyo3::prelude::*;
 
 mod loudness_zwst;
+mod sharpness_din;
 mod slm;
 
 /// The version of the underlying `mosqito-core` crate.
@@ -28,5 +29,16 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst, m)?)?;
     m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst_freq, m)?)?;
     m.add_function(wrap_pyfunction!(loudness_zwst::loudness_zwst_perseg, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        sharpness_din::sharpness_din_from_loudness_scalar,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        sharpness_din::sharpness_din_from_loudness_segmented,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_st, m)?)?;
+    m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_freq, m)?)?;
+    m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_perseg, m)?)?;
     Ok(())
 }
