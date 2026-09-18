@@ -116,6 +116,48 @@ same correction. Entries below are grouped by status: **implemented**,
   (41 DIN 45692 signals, `tests/conformance_sharpness_din.rs`) and the
   differential test against installed `mosqito` both pass at ~1e-9 relative.
 
+### D-tv-1 — `_nonlinear_decay.py:90-91` — investigated, kept as-is
+
+- **MoSQITo**: the nonlinear-decay recurrence's very first upsampled time
+  step reads its "previous" state at Python index `col - 1` with `col = 0`,
+  which negative-index-wraps to the *last* upsampled column of `uo_mat` —
+  still holding its initial value (the signal's *last* frame's core
+  loudness, scaled down by the same ramp-to-zero its own last-frame delta
+  uses) — and a `u2_mat` of exactly `0.0` (also untouched, hence its
+  zero-initialized default). Concretely: the decay filter's state at time
+  zero is seeded from the end of the signal, not from silence. Separately,
+  the explicit pre-loop initialization of `u2_mat[:, 0]`
+  (`_nonlinear_decay.py:68-69`) is provably dead code: the loop's first
+  iteration (`col = 0`) unconditionally overwrites `u2_mat[:, 0]` at line
+  102 (`u2_mat[:, col] = uo_mat[:, col]`) before anything downstream ever
+  reads it, so that special-cased initialization has no effect on any
+  output. This was flagged during the `noct_spectrum` step as "needs
+  verification during the `loudness_zwtv` port"; both points above are that
+  verification.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/loudness/zwtv/nonlinear_decay.rs`
+  reproduces the wraparound exactly (seeding the sequential recurrence's
+  initial `uo`/`u2` state from the same values Python's wraparound reaches),
+  and simply omits the dead `u2` pre-initialization rather than translating
+  code that can never affect a result.
+- **Why not "fixed"**: unlike the other bugs in this register, ISO 532-1
+  does not publish an initial-condition prescription for this recurrence to
+  check the wraparound against, so "seed from silence instead" would be an
+  assumption substituted for another assumption, not a standards-anchored
+  correction. Its effect is also bounded: the recurrence's slowest time
+  constant (`t_var` = 75 ms) is a handful of 2 kHz frames, so any distortion
+  from the wraparound is confined to the first fraction of a second of
+  output.
+- **Measured impact**: none observable at the ISO 532-1 conformance
+  tolerance. `nl_loudness_matches_mosqito_including_the_first_frame_wraparound`
+  (`tests/golden_zwtv.rs`) checks exactly the short (`ntime` as low as 2)
+  matrices where the wraparound dominates the output, against real
+  `mosqito`, to ~1e-9 relative — the safest bit-for-bit signal this
+  behaviour is reproduced correctly, independent of whether keeping it was
+  the right call. And it is: all 20 ISO 532-1 Annex B.4 + B.5 reference
+  signals (`tests/conformance_loudness_zwtv.rs`) pass the standard's own
+  section 6.1 compliance procedure (±2 ms realignment, ≤1% of samples
+  allowed outside the wider of ±5%/±0.1 sone) with this behaviour in place.
+
 ---
 
 ## Planned (identified during exploration, not yet implemented)
@@ -206,13 +248,6 @@ coupled to D-ecma-5** — see there.
 The guard term is written `10e-10` (= 1e-9); almost certainly intended as
 `1e-10`. Low impact; will be decided and recorded (not silently transcribed)
 when the roughness port lands.
-
-### `_nonlinear_decay.py:90-91`
-
-`col-1` at `col=0` wraps to the last column of `uo_mat`/`u2_mat`. Needs
-verification during the `loudness_zwtv` port as to whether this is load-bearing
-(the arrays may be zero-initialized such that it's inert) or a real bug;
-recorded here as a flag to check, not yet a resolved entry.
 
 ---
 

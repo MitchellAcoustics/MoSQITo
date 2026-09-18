@@ -75,6 +75,13 @@ def test_sharpness_din_freq_matches_mosqito(repo_root):
     np.testing.assert_allclose(s_rs, s_py, rtol=1e-9)
 
 
-def test_sharpness_din_tv_is_not_yet_implemented():
-    with pytest.raises(NotImplementedError):
-        mosqito_rs.sharpness_din_tv(np.zeros(48000), 48000)
+@pytest.mark.differential
+def test_sharpness_din_tv_matches_mosqito(repo_root):
+    mosqito = pytest.importorskip("mosqito")
+    sig, fs = load_wav_calibrated(
+        repo_root / "tests/input/broadband_570.wav", wav_calib=1
+    )
+    s_rs, time_rs = mosqito_rs.sharpness_din_tv(sig, fs, weighting="din", skip=0.05)
+    s_py, time_py = mosqito.sq_metrics.sharpness_din_tv(sig, fs, weighting="din", skip=0.05)
+    np.testing.assert_allclose(s_rs, s_py, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(time_rs, time_py)

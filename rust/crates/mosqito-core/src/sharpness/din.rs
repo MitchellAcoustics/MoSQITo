@@ -1,14 +1,12 @@
-//! DIN 45692:2009 sharpness from loudness, and the three time/frequency
-//! entry points built on the already-ported ISO 532-1 stationary loudness
-//! pipeline (`loudness::zwst`).
-//!
-//! `sharpness_din_tv` (built on `loudness_zwtv`, not yet ported) is not
-//! implemented here; see the Python wrapper.
+//! DIN 45692:2009 sharpness from loudness, and the four time/frequency
+//! entry points built on the ISO 532-1 stationary (`loudness::zwst`) and
+//! time-varying (`loudness::zwtv`) loudness pipelines.
 
 use ndarray::Array2;
 
 use crate::dsp::interp;
 use crate::loudness::zwst::{bark_axis, loudness_zwst, loudness_zwst_freq, FieldType};
+use crate::loudness::zwtv::{loudness_zwtv, LoudnessZwtvError};
 
 /// The four sharpness weighting functions `sharpness_din_from_loudness`
 /// supports (`_weighting_fastl.py` plus the three closed-form curves in
@@ -176,4 +174,32 @@ pub fn sharpness_din_perseg(
         crate::loudness::zwst::loudness_zwst_perseg(signal, fs, nperseg, noverlap, field_type)?;
     let s = sharpness_din_from_loudness_segmented(&n, &n_specific, weighting);
     Ok((s, time))
+}
+
+/// Sharpness along time from a time-varying signal. Matches
+/// `sharpness_din_tv(signal, fs, weighting, field_type, skip)`.
+///
+/// `skip` cuts the leading transient (`loudness_zwtv`'s nonlinear decay
+/// stage takes a few frames to settle, per its own module doc): the
+/// returned arrays start at the first output frame whose time is closest to
+/// `skip` seconds (`sharpness_din_tv.py:123`, `argmin(abs(time_axis -
+/// skip))` — nearest, not the first frame *at or after* `skip`).
+pub fn sharpness_din_tv(
+    signal: &[f64],
+    fs: f64,
+    weighting: Weighting,
+    field_type: FieldType,
+    skip: f64,
+) -> Result<(Vec<f64>, Vec<f64>), LoudnessZwtvError> {
+    let (n, n_specific, _bark, time) = loudness_zwtv(signal, fs, field_type)?;
+    let s = sharpness_din_from_loudness_segmented(&n, &n_specific, weighting);
+
+    let cut_index = time
+        .iter()
+        .enumerate()
+        .min_by(|(_, &a), (_, &b)| (a - skip).abs().total_cmp(&(b - skip).abs()))
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+
+    Ok((s[cut_index..].to_vec(), time[cut_index..].to_vec()))
 }

@@ -132,3 +132,26 @@ pub fn sharpness_din_perseg<'py>(
         Array1::from(time).into_pyarray(py),
     ))
 }
+
+/// Matches `sharpness_din_tv(signal, fs, weighting, field_type, skip)`.
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+#[pyo3(name = "sharpness_din_tv")]
+#[pyo3(signature = (signal, fs, weighting, field_type, skip))]
+pub fn sharpness_din_tv<'py>(
+    py: Python<'py>,
+    signal: PyReadonlyArray1<'py, f64>,
+    fs: f64,
+    weighting: &str,
+    field_type: &str,
+    skip: f64,
+) -> PyResult<PersegResult<'py>> {
+    let w = parse_weighting(weighting)?;
+    let ft = parse_field_type(field_type)?;
+    let (s, time) = core_din::sharpness_din_tv(signal.as_slice()?, fs, w, ft, skip)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((
+        Array1::from(s).into_pyarray(py),
+        Array1::from(time).into_pyarray(py),
+    ))
+}

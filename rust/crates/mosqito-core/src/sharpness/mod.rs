@@ -5,5 +5,5 @@ pub mod din;
 
 pub use din::{
     sharpness_din_freq, sharpness_din_from_loudness, sharpness_din_from_loudness_segmented,
-    sharpness_din_perseg, sharpness_din_st, Weighting,
+    sharpness_din_perseg, sharpness_din_st, sharpness_din_tv, Weighting,
 };

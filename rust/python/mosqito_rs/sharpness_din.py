@@ -193,15 +193,37 @@ def sharpness_din_perseg(
     )
 
 
-def sharpness_din_tv(*args, **kwargs):
+def sharpness_din_tv(
+    signal: np.ndarray,
+    fs: float,
+    weighting: str = "din",
+    field_type: str = "free",
+    skip: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
     """Compute the sharpness value along time from a time-varying signal.
 
-    Not yet ported: :func:`mosqito.sq_metrics.sharpness_din_tv` is built on
-    ``loudness_zwtv``, which has not landed yet (it is the next metric in
-    the port order). See :func:`sharpness_din_perseg` for a currently
-    available per-segment alternative.
+    Matches :func:`mosqito.sq_metrics.sharpness_din_tv`.
+
+    Parameters
+    ----------
+    signal : numpy.ndarray
+        Input time signal [Pa].
+    fs : float
+        Sampling frequency [Hz]. Resampled to 48 kHz first if below it.
+    weighting : {'din', 'aures', 'bismarck', 'fastl'}, default 'din'
+        Weighting function used for the sharpness computation.
+    field_type : {'free', 'diffuse'}, default 'free'
+        Type of sound field.
+    skip : float, default 0.0
+        Number of seconds to cut at the beginning of the analysis, to skip
+        the transient effect of `loudness_zwtv`'s nonlinear decay stage.
+
+    Returns
+    -------
+    S : numpy.ndarray
+        Sharpness value [acum], shape ``(Ntime,)``.
+    time_axis : numpy.ndarray
+        Time axis [s], shape ``(Ntime,)``.
     """
-    raise NotImplementedError(
-        "mosqito_rs.sharpness_din_tv is not yet ported (it depends on loudness_zwtv, "
-        "not yet implemented); use sharpness_din_perseg for now"
-    )
+    signal = np.ascontiguousarray(signal, dtype=np.float64)
+    return _core.sharpness_din_tv(signal, float(fs), str(weighting), str(field_type), float(skip))
