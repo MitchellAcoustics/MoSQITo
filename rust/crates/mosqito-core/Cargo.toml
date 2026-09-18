@@ -20,8 +20,13 @@ rustfft.workspace = true
 
 [dev-dependencies]
 approx = "0.5"
+criterion = "0.5"
 hound = "3.5"
 serde_json = "1"
 
 [features]
 default = []
+
+[[bench]]
+name = "metrics"
+harness = false

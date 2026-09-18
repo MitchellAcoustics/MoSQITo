@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "rust/**"
+      - ".github/workflows/ci.yml"
+
+defaults:
+  run:
+    working-directory: rust
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Includes the standards conformance gates (ISO 532-1, DIN 45692,
+      # ECMA-418-2), which need the reference corpus under tests/input/ and
+      # validations/ — present in a full (non-shallow-filtered) checkout.
+      - name: cargo test --workspace --release
+        run: cargo test --workspace --release
+
+  python:
+    name: Python (maturin develop + pytest)
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build/test dependencies
+        run: pip install maturin numpy scipy pytest
+
+      - name: maturin develop --release
+        run: maturin develop --release
+
+      # The conformance tier is the gate; the differential tier additionally
+      # needs `mosqito` and `sottek-hearing-model` installed and is
+      # diagnostic-only, not run here to keep this job's dependency surface
+      # small and its runtime predictable.
+      - name: pytest -m conformance
+        run: pytest tests/ -v -m conformance

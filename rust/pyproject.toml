@@ -41,4 +41,5 @@ testpaths = ["tests"]
 markers = [
     "conformance: checks a published standard's reference values (gating)",
     "differential: compares against another implementation (diagnostic, non-gating)",
+    "benchmark: wall-time comparison against mosqito, via pytest-benchmark (opt-in, not run by default)",
 ]
