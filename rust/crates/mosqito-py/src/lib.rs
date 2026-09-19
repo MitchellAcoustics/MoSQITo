@@ -22,6 +22,7 @@ mod roughness_ecma;
 mod sharpness_din;
 mod slm;
 mod speech_intelligibility;
+mod tonality;
 
 /// Parses MoSQITo's `field_type` string argument, shared by every binding
 /// that takes it (`loudness_zwst*`, `loudness_zwtv`, `sharpness_din*`).
@@ -73,5 +74,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generators::am_sine_generator, m)?)?;
     m.add_function(wrap_pyfunction!(generators::am_noise_generator, m)?)?;
     m.add_function(wrap_pyfunction!(generators::fm_sine_generator, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::tnr_ecma_st, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::tnr_ecma_freq, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::tnr_ecma_perseg, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::pr_ecma_st, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::pr_ecma_freq, m)?)?;
+    m.add_function(wrap_pyfunction!(tonality::pr_ecma_perseg, m)?)?;
     Ok(())
 }

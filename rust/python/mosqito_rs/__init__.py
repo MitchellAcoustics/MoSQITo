@@ -36,6 +36,14 @@ from .sharpness_din import (
 )
 from .sound_level_meter import noct_spectrum, noct_synthesis
 from .speech_intelligibility import sii_ansi, sii_ansi_freq, sii_ansi_level
+from .tonality import (
+    pr_ecma_freq,
+    pr_ecma_perseg,
+    pr_ecma_st,
+    tnr_ecma_freq,
+    tnr_ecma_perseg,
+    tnr_ecma_st,
+)
 
 __all__ = [
     "__version__",
@@ -62,6 +70,12 @@ __all__ = [
     "am_sine_generator",
     "am_noise_generator",
     "fm_sine_generator",
+    "tnr_ecma_st",
+    "tnr_ecma_freq",
+    "tnr_ecma_perseg",
+    "pr_ecma_st",
+    "pr_ecma_freq",
+    "pr_ecma_perseg",
 ]
 
 __version__ = "0.1.0"

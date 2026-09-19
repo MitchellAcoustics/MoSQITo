@@ -18,6 +18,7 @@ pub mod roughness;
 pub mod sharpness;
 pub mod slm;
 pub mod speech_intelligibility;
+pub mod tonality;
 pub mod utils;
 
 /// Re-exported so callers and tests share this crate's complex number type.
