@@ -19,6 +19,7 @@ mod loudness_zwtv;
 mod roughness_ecma;
 mod sharpness_din;
 mod slm;
+mod speech_intelligibility;
 
 /// Parses MoSQITo's `field_type` string argument, shared by every binding
 /// that takes it (`loudness_zwst*`, `loudness_zwtv`, `sharpness_din*`).
@@ -61,5 +62,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_freq, m)?)?;
     m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_perseg, m)?)?;
     m.add_function(wrap_pyfunction!(sharpness_din::sharpness_din_tv, m)?)?;
+    m.add_function(wrap_pyfunction!(speech_intelligibility::sii_ansi, m)?)?;
+    m.add_function(wrap_pyfunction!(speech_intelligibility::sii_ansi_freq, m)?)?;
+    m.add_function(wrap_pyfunction!(speech_intelligibility::sii_ansi_level, m)?)?;
     Ok(())
 }

@@ -12,10 +12,12 @@
 //! module documentation for the specific conventions that are matched.
 
 pub mod dsp;
+pub mod generators;
 pub mod loudness;
 pub mod roughness;
 pub mod sharpness;
 pub mod slm;
+pub mod speech_intelligibility;
 pub mod utils;
 
 /// Re-exported so callers and tests share this crate's complex number type.

@@ -28,6 +28,7 @@ from .sharpness_din import (
     sharpness_din_tv,
 )
 from .sound_level_meter import noct_spectrum, noct_synthesis
+from .speech_intelligibility import sii_ansi, sii_ansi_freq, sii_ansi_level
 
 __all__ = [
     "__version__",
@@ -45,6 +46,9 @@ __all__ = [
     "sharpness_din_freq",
     "sharpness_din_perseg",
     "sharpness_din_tv",
+    "sii_ansi",
+    "sii_ansi_freq",
+    "sii_ansi_level",
 ]
 
 __version__ = "0.1.0"
