@@ -1,13 +1,29 @@
 name: Wheels
 
 # Builds distributable wheels for mosqito-rs across platforms/Python
-# versions. Triggered manually, or on a version tag (v*) — tagging does not
-# publish anywhere by itself; wheels are uploaded as workflow artifacts.
-# Wiring in a PyPI publish step is a deliberate follow-up, not done here.
+# versions. Triggered manually, or on a version tag (v*) — by itself,
+# neither trigger publishes anywhere; wheels are uploaded as workflow
+# artifacts and a crates.io dry-run sanity-checks mosqito-core's
+# publishability on every run.
+#
+# The actual PyPI publish step only runs when a manual dispatch explicitly
+# opts in via the `publish_to_pypi` input below — a tag push alone never
+# triggers it. It also cannot succeed yet: PyPI trusted publishing (OIDC,
+# no stored token) needs a one-time setup at
+# https://pypi.org/manage/account/publishing/ for project `mosqito-rs`,
+# workflow `wheels.yml`, environment `pypi` — done by whoever owns the PyPI
+# project name, not from this repo. A real crates.io release is a separate,
+# manual `cargo publish -p mosqito-core` from a maintainer's machine; this
+# workflow only ever dry-runs it.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publish_to_pypi:
+        description: "Publish the built wheels/sdist to PyPI (requires trusted publishing to be configured first, see workflow comment)"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -98,3 +114,37 @@ jobs:
       - name: pytest -m conformance
         working-directory: rust
         run: pytest tests/ -v -m conformance
+
+  crates-io-dry-run:
+    name: crates.io publishability check (dry run, never uploads)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo publish --dry-run
+        working-directory: rust
+        run: cargo publish --dry-run -p mosqito-core
+
+  publish-pypi:
+    name: Publish to PyPI (trusted publishing)
+    runs-on: ubuntu-latest
+    needs: [build, build-sdist, conformance-check]
+    # Only an explicit manual dispatch with the box checked can reach this
+    # job — a tag push alone builds and artifact-uploads wheels but never
+    # publishes. See this workflow's top comment for the one-time PyPI-side
+    # setup this job needs before it can actually succeed.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_to_pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/project/mosqito-rs/
+    permissions:
+      id-token: write # required for PyPI trusted publishing (OIDC); no API token stored anywhere
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
