@@ -501,6 +501,41 @@ and that's worth explaining rather than leaving as an unexplained number.
   (`speech_intelligibility/sii.rs`'s `custom_threshold_*` tests) rather than
   differentially, since there is no working Python call to compare against.
 
+### `freq_band_synthesis`'s axis-extension branches — initially skipped, now ported
+
+- **MoSQITo**: `freq_band_synthesis` rebuilds its frequency axis as
+  `arange(fmin.min(), fmax.max() + df, df)` and resamples the spectrum onto
+  it with `numpy.interp` whenever the requested bands reach past either end
+  of the input axis. The warning it prints says "Empty values will be filled
+  with 0", but `numpy.interp` *clamps* to the edge value, so the extension
+  repeats the spectrum's first/last value.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/slm/freq_band_synthesis.rs`
+  reproduces both branches, edge-clamping included (message notwithstanding).
+- **Why this is here**: an earlier version of this port documented these
+  branches as unreachable and omitted them. That was wrong. `sii_ansi`'s
+  octave procedure asks for bands up to 11360 Hz from a `comp_spectrum` axis
+  that only reaches `fs/2`, so every `fs` below ~22.7 kHz takes the `fmax`
+  branch — 16 kHz speech audio being the obvious case.
+- **Measured impact**: at `fs = 16000`, octave procedure, the top band came
+  out 4.0 dB low (51.003 vs. MoSQITo's 55.011 dB). That was invisible in the
+  first tests written for it because SII's `k` term clamps to 0 or 1 for
+  loud or quiet noise; sweeping the noise level until that band landed in
+  the unclamped range showed SII itself differing by up to 7.3e-3. Now
+  agrees to 2.2e-16 across all four band procedures and `fs` in {16, 20, 32,
+  48} kHz. Caught in review; regression test:
+  `freq_band_synthesis_matches_mosqito_beyond_the_spectrums_axis`.
+
+### SII's custom threshold is length-checked rather than silently truncated
+
+- **MoSQITo**: `_main_sii` crashes on an array `threshold` before this can
+  matter (see the entry above), so it has no length check either.
+- **`mosqito-rs`**: `main_sii` asserts a `SiiThreshold::Custom` array has one
+  value per band. Without it, every `zip` downstream truncates to the
+  shorter operand, silently dropping trailing bands from the SII sum and
+  returning a plausible but too-low number instead of an error.
+- **Measured impact**: none on any correct call; turns a silent wrong answer
+  into an immediate, explicit failure. Caught in review.
+
 ### `_H_weighting.py`'s three curves share one truncated frequency range
 
 - **MoSQITo**: `_H_weighting.py` computes the highest bin index to fill
@@ -651,6 +686,28 @@ a differential pytest cross-check through the public Python API
   filter's offset. Reproduced exactly in
   `mosqito-core::tonality::tnr::evaluate_segment` (see its own comment) —
   real MoSQITo behaviour, no standard to check it against.
+- **`_screening_for_tones`'s `stop` table — an off-by-one this port got
+  wrong, now fixed.** MoSQITo builds `stop = arange(1, n+1) * m - 1` for
+  several segments (and `[m]` for one), then picks the segment whose
+  `stop[i] - m < peak_index < stop[i]`. An earlier version of this port used
+  `i * m`, which shifted the matched window by one and left each segment's
+  *first* bin unmatched; that bin then fell back to segment 0 and was
+  recorded with its un-offset flat index — out of range for segment 0's own
+  arrays, and an out-of-bounds panic once `tnr_main_calc` indexed with it.
+  Now computed as `peak_index / m`, which equals Python's answer for every
+  index Python's scan matches, and gives the one index it leaves unmatched
+  (each segment's *last* bin, where Python falls through to a stale `block`
+  or raises `UnboundLocalError`) its own correct segment. Caught in review;
+  regression test:
+  `screening_attributes_a_segment_boundary_candidate_to_its_own_segment`.
+- **`_screening_for_tones`'s `low_limit` can go negative — now reproduced
+  rather than underflowing.** `low_limit` starts at the candidate's original
+  position, but the left-hand scan starts from wherever the right-hand scan
+  moved the peak to, so it can be decremented past zero. Python lets it go
+  negative and then negative-indexes `freqs` with it, wrapping to the end of
+  the flat array; this port held it in a `usize`, which underflowed (a panic
+  in debug, an out-of-bounds index in release). Now an `isize` read through
+  a `python_index` helper that reproduces the wraparound. Caught in review.
 - **`_find_highest_tone`'s `nb_tones` counter — simplified, not a
   behaviour change.** Python threads an explicit `nb_tones` integer
   alongside the candidate array through the recursion; every place that

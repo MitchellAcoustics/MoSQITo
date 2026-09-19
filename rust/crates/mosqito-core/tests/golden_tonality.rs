@@ -199,6 +199,54 @@ fn spectrum_smoothing_and_screening_match_mosqito_for_multiple_segments() {
     }
 }
 
+/// Regression: a candidate on a segment's *first* bin. MoSQITo's `stop`
+/// table matches that index to its own segment; an earlier version of this
+/// port left it unmatched, defaulted to segment 0, and recorded an
+/// un-offset flat index there — out of range for that segment, and a panic
+/// once `tnr_main_calc` used it.
+#[test]
+fn screening_attributes_a_segment_boundary_candidate_to_its_own_segment() {
+    let g = golden();
+    let c = &g["screening_segment_boundary"];
+    let freqs_by_seg = floats2d(&c["freqs"]);
+    let spec_db_by_seg = floats2d(&c["spec_db"]);
+    let want: Vec<Vec<usize>> = c["tones"].as_array().unwrap().iter().map(usizes).collect();
+
+    let got = screening_for_tones(&freqs_by_seg, &spec_db_by_seg, 90.0, 11200.0);
+    assert_eq!(got.len(), want.len());
+    let m = freqs_by_seg[0].len();
+    for (s, (mut g_seg, mut w_seg)) in got.into_iter().zip(want).enumerate() {
+        g_seg.sort_unstable();
+        w_seg.sort_unstable();
+        assert!(
+            g_seg.iter().all(|&i| i < m),
+            "segment {s} produced an index outside its own {m}-bin arrays: {g_seg:?}"
+        );
+        assert_eq!(g_seg, w_seg, "screening tones (segment {s})");
+    }
+}
+
+/// Regression: the left-hand scan can walk further left than the original
+/// peak's distance from 0, so MoSQITo's `low_limit` goes negative and
+/// negative-indexes `freqs`. An earlier version of this port held it in a
+/// `usize`, which underflowed instead of wrapping.
+#[test]
+fn screening_handles_a_negative_low_limit_the_way_python_does() {
+    let g = golden();
+    let c = &g["screening_negative_low_limit"];
+    let freqs = floats(&c["freqs"]);
+    let spec_db = floats(&c["spec_db"]);
+    let want = usizes(&c["tones"]);
+
+    let got = screening_for_tones(&[freqs], &[spec_db], 90.0, 11200.0);
+    assert_eq!(got.len(), 1);
+    let mut got_sorted = got[0].clone();
+    got_sorted.sort_unstable();
+    let mut want_sorted = want;
+    want_sorted.sort_unstable();
+    assert_eq!(got_sorted, want_sorted);
+}
+
 #[test]
 fn tnr_and_pr_main_calc_match_mosqito_for_a_single_spectrum() {
     let g = golden();

@@ -74,7 +74,17 @@ pub fn main_sii(
             let bark = freq2bark(data.center);
             ltq(&bark, LtqReference::Zwicker)
         }
-        SiiThreshold::Custom(arr) => arr.to_vec(),
+        SiiThreshold::Custom(arr) => {
+            // Without this, a short array would silently truncate every
+            // `zip` below it and drop trailing bands from the SII sum — a
+            // plausible-looking but wrong answer rather than an error.
+            assert_eq!(
+                arr.len(),
+                nbands,
+                "a custom threshold needs one value per band ({nbands} for this method)"
+            );
+            arr.to_vec()
+        }
     };
 
     let z: Vec<f64> = if matches!(method, SiiMethod::Octave) {
@@ -219,6 +229,22 @@ pub fn sii_ansi_level(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "one value per band")]
+    fn a_custom_threshold_of_the_wrong_length_is_rejected() {
+        // Silently zipping a short threshold would drop trailing bands from
+        // the SII sum and return a plausible but wrong number.
+        let speech = [50.0, 40.0, 40.0, 30.0, 20.0, 0.0];
+        let noise = [70.0, 65.0, 45.0, 25.0, 1.0, -15.0];
+        let short = [0.0; 3];
+        main_sii(
+            SiiMethod::Octave,
+            &speech,
+            &noise,
+            SiiThreshold::Custom(&short),
+        );
+    }
 
     #[test]
     fn custom_threshold_matches_zero_threshold_when_all_zero() {

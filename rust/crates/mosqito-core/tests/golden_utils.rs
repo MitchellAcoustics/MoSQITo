@@ -167,6 +167,35 @@ fn comp_spectrum_matches_mosqito_2d() {
     }
 }
 
+/// Regression: bands reaching past the end of the spectrum's own frequency
+/// axis (every `sii_ansi` call below ~22.7 kHz). MoSQITo rebuilds the axis
+/// and resamples onto it with `numpy.interp`; skipping that understated the
+/// top band by ~4 dB at `fs = 16000`.
+#[test]
+fn freq_band_synthesis_matches_mosqito_beyond_the_spectrums_axis() {
+    let g = golden();
+    let c = &g["freq_band_synthesis_beyond_axis"];
+    let spectrum_db = floats(&c["spectrum_db"]);
+    let freqs = floats(&c["freqs"]);
+    let fmin = floats(&c["fmin"]);
+    let fmax = floats(&c["fmax"]);
+    let want_levels = floats(&c["band_levels"]);
+
+    assert!(
+        fmax.iter().copied().fold(f64::MIN, f64::max)
+            > freqs.iter().copied().fold(f64::MIN, f64::max),
+        "this case is meant to exercise the axis-extension branch"
+    );
+
+    let (got_levels, _) = freq_band_synthesis(&spectrum_db, &freqs, &fmin, &fmax);
+    assert_close(
+        &got_levels,
+        &want_levels,
+        1e-9,
+        "freq_band_synthesis levels (extended axis)",
+    );
+}
+
 #[test]
 fn freq_band_synthesis_matches_mosqito() {
     let g = golden();

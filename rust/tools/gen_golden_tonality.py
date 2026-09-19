@@ -117,6 +117,46 @@ def main() -> None:
         "tones": [np.asarray(t, dtype=float).tolist() for t in tones2],
     }
 
+    # --- Screening regression cases for two bugs found in review -------------
+    # (a) A candidate sitting on a segment's *first* bin. MoSQITo's `stop`
+    # table (`arange(1, n+1) * m - 1`) matches that index to its own segment;
+    # an earlier version of this port used `i * m`, leaving it unmatched, so
+    # it fell back to segment 0 and was recorded with an un-offset flat index
+    # — out of range for that segment's arrays, and a panic downstream.
+    spike = spec_db_2d.copy()
+    for i in range(1, spike.shape[0]):
+        spike[i, 0] = spec_db_2d[i].max() + 25.0
+        spike[i, 1] = spec_db_2d[i].min()
+        spike[i - 1, -1] = spec_db_2d[i - 1].min()
+    cases["screening_segment_boundary"] = {
+        "freqs": freqs_2d.tolist(),
+        "spec_db": spike.tolist(),
+        "tones": [
+            np.asarray(t, dtype=float).tolist()
+            for t in _screening_for_tones(freqs_2d, spike, "smoothed", 90.0, 11200.0)
+        ],
+    }
+
+    # (b) A candidate whose left-hand scan walks further left than the
+    # original peak's distance from 0, driving MoSQITo's `low_limit` negative
+    # so it negative-indexes `freqs` (wrapping to the end of the array). An
+    # earlier version of this port held `low_limit` in a `usize`, which
+    # underflowed instead. The comb below is a deterministic replay of the
+    # randomised search that first turned this up.
+    k, hi_off, lo_off, mod, ramp = 26, 22.402833772993297, 26.745716648957142, 3, 3.194803738354427
+    comb = spec1.copy()
+    hi = spec1[:k].max() + hi_off
+    lo = spec1[:k].min() - lo_off
+    pattern = np.array([hi if (j % mod) else lo for j in range(k)], dtype=float)
+    comb[:k] = pattern + np.linspace(0, ramp, k)
+    cases["screening_negative_low_limit"] = {
+        "freqs": freqs1.tolist(),
+        "spec_db": comb.tolist(),
+        "tones": np.asarray(
+            _screening_for_tones(freqs1, comb, "smoothed", 90.0, 11200.0), dtype=float
+        ).tolist(),
+    }
+
     # --- _tnr_main_calc / _pr_main_calc, 1-D and (2-D spec, 1-D freq) --------
     tf1, tnr1, prom1, t_tnr1 = _tnr_main_calc(spec_db1, freq_axis1)
     cases["tnr_main_calc_1d"] = {

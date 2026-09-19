@@ -60,7 +60,6 @@ pub fn screening_for_tones(
         freqs_flat.extend_from_slice(row);
     }
 
-    let stop: Vec<usize> = (1..=n).map(|i| i * m).collect();
     let total = spec_db_flat.len();
 
     // Criteria 1: local maxima (diff(sign(diff(spec_db))) < 0).
@@ -103,14 +102,26 @@ pub fn screening_for_tones(
 
     while !index.is_empty() {
         let mut peak_index = index[0];
-        let mut block = 0usize;
-        for (i, &s) in stop.iter().enumerate() {
-            if peak_index < s && peak_index > s - m {
-                block = i;
-            }
-        }
+        // The segment this candidate belongs to. Python finds it by scanning
+        // a `stop` table (`arange(1, n+1) * m - 1` for several segments,
+        // `[m]` for one) and keeping the `i` whose `stop[i] - m < peak_index
+        // < stop[i]` — which is exactly `peak_index / m` for every index the
+        // scan matches. The scan leaves one index per segment unmatched (the
+        // segment's *last* bin), where Python falls through to a stale
+        // `block` from the previous candidate, or raises `UnboundLocalError`
+        // on the first one; dividing gives that bin its own (correct)
+        // segment instead of a wrong or undefined one. Identical to Python
+        // wherever Python is defined — see `DEVIATIONS.md`.
+        let block = peak_index / m;
 
-        let mut low_limit = peak_index;
+        // `low_limit` tracks the *original* peak, but the left-hand scan
+        // below starts from the peak position the right-hand scan may have
+        // already moved rightward, so it can be decremented further than the
+        // original peak's distance from 0 and go negative. Python lets it,
+        // then negative-indexes `freqs` with it (wrapping to the end of the
+        // flat array); `isize` plus `python_index` below reproduces that
+        // rather than underflowing a `usize`.
+        let mut low_limit: isize = peak_index as isize;
         let mut high_limit = peak_index;
 
         let mut temp = peak_index + 1;
@@ -142,7 +153,7 @@ pub fn screening_for_tones(
 
         let (f1, f2) = critical_band(freqs_flat[peak_index]);
         let cb_width = f2 - f1;
-        let t_width = freqs_flat[high_limit] - freqs_flat[low_limit];
+        let t_width = freqs_flat[high_limit] - python_index(&freqs_flat, low_limit);
 
         if t_width < cb_width {
             tones[block].push(peak_index - block * m);
@@ -154,9 +165,49 @@ pub fn screening_for_tones(
     tones
 }
 
+/// Reads `arr[idx]` with Python's list-indexing semantics: a negative `idx`
+/// counts back from the end. Only reachable via `low_limit` above, which
+/// Python also allows to go negative.
+///
+/// # Panics
+/// Panics if `idx` is out of range even after wrapping, as Python's own
+/// `IndexError` would.
+fn python_index(arr: &[f64], idx: isize) -> f64 {
+    let wrapped = if idx < 0 {
+        arr.len() as isize + idx
+    } else {
+        idx
+    };
+    assert!(
+        wrapped >= 0 && (wrapped as usize) < arr.len(),
+        "index {idx} out of range for a {}-element array",
+        arr.len()
+    );
+    arr[wrapped as usize]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_index_counts_back_from_the_end_for_a_negative_index() {
+        // `low_limit` can go negative (the left-hand scan starts from a peak
+        // the right-hand scan already moved rightward), and Python then
+        // wraps rather than failing. Holding it in a `usize` underflowed
+        // instead — the bug this helper exists to avoid.
+        let arr = [10.0, 20.0, 30.0, 40.0];
+        assert_eq!(python_index(&arr, 0), 10.0);
+        assert_eq!(python_index(&arr, 3), 40.0);
+        assert_eq!(python_index(&arr, -1), 40.0);
+        assert_eq!(python_index(&arr, -4), 10.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of range")]
+    fn python_index_rejects_an_index_that_does_not_wrap_into_range() {
+        python_index(&[1.0, 2.0], -5);
+    }
 
     #[test]
     fn finds_a_pure_tone_injected_into_broadband_noise() {

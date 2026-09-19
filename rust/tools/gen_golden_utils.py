@@ -119,6 +119,30 @@ def main() -> None:
         "band_centers": band_centers.tolist(),
     }
 
+    # --- freq_band_synthesis, bands reaching past the spectrum's own axis ----
+    # `sii_ansi`'s octave procedure asks for bands up to 11360 Hz, so any
+    # `fs` below ~22.7 kHz lands here: MoSQITo rebuilds the frequency axis as
+    # `arange(fmin.min(), fmax.max() + df, df)` and resamples onto it with
+    # `numpy.interp`, which edge-clamps (despite the "filled with 0" warning
+    # it prints). Skipping that understated the top band by ~4 dB.
+    fmin_wide = np.array([177.0, 355.0, 710.0, 1420.0, 2840.0, 5680.0])
+    fmax_wide = np.array([355.0, 710.0, 1420.0, 2840.0, 5680.0, 11360.0])
+    # 16 kHz: the one-sided axis only reaches 8 kHz, well short of 11360.
+    fs_low = 16000
+    noise_low = RNG.normal(0.0, 0.01, fs_low // 2)
+    spec_low_db, freq_low = comp_spectrum(
+        noise_low, fs_low, nfft="default", window="blackman", db=True
+    )
+    levels_wide, centers_wide = freq_band_synthesis(spec_low_db, freq_low, fmin_wide, fmax_wide)
+    cases["freq_band_synthesis_beyond_axis"] = {
+        "spectrum_db": spec_low_db.tolist(),
+        "freqs": freq_low.tolist(),
+        "fmin": fmin_wide.tolist(),
+        "fmax": fmax_wide.tolist(),
+        "band_levels": levels_wide.tolist(),
+        "band_centers": centers_wide.tolist(),
+    }
+
     # --- generators ------------------------------------------------------
     sig, time = sine_wave_generator(fs=48000, d=0.05, freq=200.0, spl_level=65.0)
     cases["sine_wave_generator"] = {
