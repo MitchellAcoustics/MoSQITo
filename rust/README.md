@@ -34,6 +34,25 @@ Every metric is also validated against golden vectors captured from the real
 `mosqito` package, and (for the metrics with an independent reference
 implementation) cross-checked against `sottek-hearing-model`.
 
+## What's implemented (Phase 2)
+
+| Metric | Standard | Conformance gate |
+| --- | --- | --- |
+| `sii_ansi` / `sii_ansi_freq` / `sii_ansi_level` | ANSI S3.5-1997 | Standard's own worked example, wider of ±1% or ±0.01 |
+| `roughness_dw` (+ `_freq`) | Daniel & Weber (1997) | Zwicker-Fastl reference curve, ±0.1 asper, ≥90% of the 84-point (fc, fmod) grid (MoSQITo's own implementation does not reach 100% either — confirmed directly) |
+| `utils` conversions (`bark2freq`, `freq2bark`, `db2amp`, `spectrum2dBA`, `LTQ`) | — | Golden vectors against MoSQITo |
+| `sound_level_meter` (`comp_spectrum`, `freq_band_synthesis`) | — | Golden vectors against MoSQITo |
+| Signal generators (`sine_wave`, `am_sine`, `am_noise`, `fm_sine`) | — | Golden vectors / statistical checks against MoSQITo (`am_noise_generator`'s RNG is seeded, not bit-parity with `numpy.random.default_rng` — see `DEVIATIONS.md`) |
+| `sone_to_phon`, `equal_loudness_contours` | ISO 226 | Golden vectors against MoSQITo |
+| `tnr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
+| `pr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
+| `time_segmentation` | — | Differential test against MoSQITo (`is_ecma=False` case only — see `DEVIATIONS.md`) |
+| `load` | — | Differential test against MoSQITo (`.wav` case only, pure Python — see `DEVIATIONS.md`) |
+
+Phase 2 is now complete. `tnr_ecma_perseg`/`pr_ecma_perseg` only implement
+the 1-D-signal branch of their MoSQITo counterparts — the 2-D-signal branch
+has a real, unreproduced `NameError` in MoSQITo itself; see `DEVIATIONS.md`.
+
 ## Layout
 
 | Path | What it is |
@@ -73,8 +92,8 @@ cargo test --workspace --release   # unit + golden-vector + standards conformanc
 uv pip install --python ../.venv/bin/python mosqito sottek-hearing-model
 ../.venv/bin/pytest tests/ -v -m differential
 
-# Wall-time benchmarks. Criterion (mosqito-core only, covers roughness_ecma,
-# 10 s signals, rayon thread-count scaling):
+# Wall-time benchmarks. Criterion (mosqito-core only, covers every metric
+# from both phases, 10 s signals for several, rayon thread-count scaling):
 cargo bench -p mosqito-core   # HTML reports under target/criterion/
 
 # pytest-benchmark (mosqito vs. mosqito_rs on identical inputs):

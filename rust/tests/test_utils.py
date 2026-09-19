@@ -1,0 +1,73 @@
+"""Differential tests for `mosqito_rs.time_segmentation`, through the
+Python API.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+import mosqito_rs
+
+
+@pytest.mark.differential
+def test_time_segmentation_matches_mosqito():
+    mosqito = pytest.importorskip("mosqito")
+    rng = np.random.default_rng(0)
+    sig = rng.uniform(-1.0, 1.0, size=48000)
+
+    blocks_rs, time_rs = mosqito_rs.time_segmentation(sig, 48000.0, nperseg=2048, noverlap=1024)
+    blocks_py, time_py = mosqito.utils.time_segmentation(
+        sig, 48000.0, nperseg=2048, noverlap=1024
+    )
+    np.testing.assert_allclose(blocks_rs, blocks_py, rtol=1e-9)
+    np.testing.assert_allclose(time_rs, time_py, rtol=1e-9)
+
+
+@pytest.mark.differential
+def test_time_segmentation_matches_mosqito_default_noverlap():
+    mosqito = pytest.importorskip("mosqito")
+    rng = np.random.default_rng(1)
+    sig = rng.uniform(-1.0, 1.0, size=20000)
+
+    blocks_rs, time_rs = mosqito_rs.time_segmentation(sig, 48000.0, nperseg=2048)
+    blocks_py, time_py = mosqito.utils.time_segmentation(sig, 48000.0, nperseg=2048)
+    np.testing.assert_allclose(blocks_rs, blocks_py, rtol=1e-9)
+    np.testing.assert_allclose(time_rs, time_py, rtol=1e-9)
+
+
+def test_time_segmentation_rejects_is_ecma():
+    sig = np.zeros(4096)
+    with pytest.raises(NotImplementedError):
+        mosqito_rs.time_segmentation(sig, 48000.0, nperseg=2048, is_ecma=True)
+
+
+@pytest.mark.differential
+def test_load_matches_mosqito(repo_root):
+    mosqito = pytest.importorskip("mosqito")
+    path = repo_root / "tests/input/Test signal 5 (pinknoise 60 dB).wav"
+
+    sig_rs, fs_rs = mosqito_rs.load(str(path), wav_calib=2 * 2**0.5)
+    sig_py, fs_py = mosqito.utils.load(str(path), wav_calib=2 * 2**0.5)
+    assert fs_rs == fs_py
+    np.testing.assert_allclose(sig_rs, sig_py, rtol=1e-9)
+
+
+@pytest.mark.differential
+def test_load_matches_mosqito_when_resampling(repo_root):
+    # The 48 kHz case above never reaches load()'s `fs != 48000` branch. This
+    # one does: the file is 44.1 kHz, so both implementations resample to
+    # 48 kHz on the way out.
+    mosqito = pytest.importorskip("mosqito")
+    path = repo_root / "tests/input/Test signal 3 (1 kHz 60 dB)_44100Hz.wav"
+
+    sig_rs, fs_rs = mosqito_rs.load(str(path), wav_calib=2 * 2**0.5)
+    sig_py, fs_py = mosqito.utils.load(str(path), wav_calib=2 * 2**0.5)
+    assert fs_rs == 48000
+    assert fs_rs == fs_py
+    np.testing.assert_allclose(sig_rs, sig_py, rtol=1e-9)
+
+
+def test_load_rejects_non_wav():
+    with pytest.raises(NotImplementedError):
+        mosqito_rs.load("signal.mat", mat_signal="sig", mat_fs="fs")

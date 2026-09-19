@@ -26,6 +26,11 @@ dynamic = ["version"]
 Repository = "https://github.com/MitchellAcoustics/MoSQITo"
 
 [project.optional-dependencies]
+# `load()` is the only part of the shipped package that needs SciPy (wav
+# decoding plus the resample to 48 kHz). Every metric is numpy-only — the DSP
+# lives in Rust — so SciPy stays out of the default install and `load()`
+# raises a message pointing here if it is missing.
+io = ["scipy>=1.10"]
 # Used by the differential test tier, which compares against both the original
 # Python implementation and an independently verified ECMA-418-2 one.
 dev = ["pytest>=7", "pytest-benchmark", "scipy>=1.10", "mosqito", "sottek-hearing-model"]
