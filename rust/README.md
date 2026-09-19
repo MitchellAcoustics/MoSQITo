@@ -46,6 +46,7 @@ implementation) cross-checked against `sottek-hearing-model`.
 | `sone_to_phon`, `equal_loudness_contours` | ISO 226 | Golden vectors against MoSQITo |
 | `tnr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
 | `pr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
+| `time_segmentation` | — | Differential test against MoSQITo (`is_ecma=False` case only — see `DEVIATIONS.md`) |
 
 Phase 2 is now complete. `tnr_ecma_perseg`/`pr_ecma_perseg` only implement
 the 1-D-signal branch of their MoSQITo counterparts — the 2-D-signal branch

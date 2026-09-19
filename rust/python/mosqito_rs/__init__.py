@@ -44,6 +44,7 @@ from .tonality import (
     tnr_ecma_perseg,
     tnr_ecma_st,
 )
+from .utils import time_segmentation
 
 __all__ = [
     "__version__",
@@ -76,6 +77,7 @@ __all__ = [
     "pr_ecma_st",
     "pr_ecma_freq",
     "pr_ecma_perseg",
+    "time_segmentation",
 ]
 
 __version__ = "0.1.0"

@@ -719,3 +719,54 @@ a differential pytest cross-check through the public Python API
   (`validation_specific_roughness_ecma.xlsx`), not against the standard
   itself. (Carried over from Phase 1; still unaddressed, out of scope for
   either phase without access to that commercial reference.)
+
+## Phase 3 — API completeness
+
+### `time_segmentation` — exposed, `is_ecma=True` not supported
+
+- **MoSQITo**: `mosqito/utils/time_segmentation.py`'s public
+  `time_segmentation(sig, fs, nperseg=2048, noverlap=None, is_ecma=False)`
+  has two code paths: the ordinary one (`is_ecma=False`), used by every real
+  caller outside `loudness_ecma` (`roughness_dw`, `tnr_ecma_perseg`,
+  `pr_ecma_perseg`), and an ECMA-418-2 §5.1.4 Eq. 16 variant (`is_ecma=True`,
+  zero-pads the signal by one block length before segmenting) used only
+  internally by `loudness_ecma/_band_pass_signals.py`.
+- **`mosqito-rs`**: `mosqito-core::utils::time_segmentation` (already used
+  internally by this port's `roughness_dw` and tonality `_perseg` entry
+  points) is now also exposed publicly as `mosqito_rs.time_segmentation`,
+  matching MoSQITo's signature — but only the `is_ecma=False` path;
+  `is_ecma=True` raises `NotImplementedError`. This port's `loudness_ecma`
+  implements its own block-index segmentation directly (see the "Noted, not
+  changed — `_ecma_time_segmentation.py`'s block index formula" entry above)
+  rather than routing through this shared function with a flag, so there is
+  no `is_ecma=True` code path here to expose in the first place.
+- **Why**: matches this project's established precedent of narrowing a
+  ported function to what's actually reachable (e.g. `noct_synthesis`'s
+  unported 2-D case, `loudness_zwst_freq`'s 1-D-only scope) rather than
+  building a code path nothing outside `loudness_ecma`'s own internals uses.
+- **Measured impact**: none — `is_ecma=False` is verified against real
+  MoSQITo output in `tests/test_utils.py`; `is_ecma=True` was never
+  reachable through this shared function in the first place for this port.
+
+### `load` and `isoclose` — not ported
+
+- **MoSQITo**: `mosqito.utils.load` reads a `.wav`/`.mat`/`.uff` file,
+  resamples to 48 kHz, and applies a calibration factor — file I/O, not a
+  psychoacoustic algorithm; `.uff` support pulls in `pyuff`, a niche
+  dependency for LMS Test.Lab-style file interchange. `mosqito.utils.isoclose`
+  is a test/compliance-plotting helper (ISO 532-1 §5.1-style tolerance-band
+  comparison) with a hard `matplotlib` dependency, used only in MoSQITo's own
+  validation scripts, not by any metric.
+- **`mosqito-rs`**: neither is ported. This port's own test suite
+  reimplements the `.wav` calibration directly where it needs it
+  (`tests/conftest.py`'s `load_wav_calibrated`, matching
+  `mosqito/utils/load.py:43-89`'s exact int16/int32 calibration) rather than
+  depending on `mosqito.utils.load`, and uses plain `numpy.testing`
+  tolerance assertions in place of `isoclose`'s plotting-oriented comparison.
+- **Why**: neither function is a psychoacoustic metric this port's standards-
+  conformance mission covers; both are one-time, non-hot-path convenience
+  utilities better served by calling `scipy.io.wavfile`/`numpy.testing`
+  directly than by adding a Rust implementation (`load`) or a `matplotlib`
+  dependency (`isoclose`) to this crate.
+- **Measured impact**: none — no metric in this port depends on either
+  function.
