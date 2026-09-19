@@ -11,11 +11,11 @@ MoSQITo's Python. Where the Python is unambiguously a bug relative to the
 standard, `mosqito-rs` fixes it. Where the Python encodes a deliberate,
 standards-sanctioned correction (the ECMA-418-2 roughness deviations from
 Wanty, Glesser & Casagrande Hirono, INTERNOISE 2024), `mosqito-rs` follows the
-same correction. All Phase 1 metrics have landed; Phase 2 (`roughness_dw`,
-speech intelligibility, the `utils`/generator helpers) is landing
-incrementally, with tonality (TNR/PR) the one metric not yet ported. Every
-entry below is either **implemented** or **deferred** (identified during
-research but out of scope for what has landed so far).
+same correction. Both Phase 1 and Phase 2 are complete: every metric they
+scoped — including `roughness_dw`, speech intelligibility, the
+`utils`/generator helpers, and tonality (TNR/PR) — has landed. Every entry
+below is either **implemented** or **deferred** (identified during research
+but deliberately out of either phase's scope).
 
 ---
 
