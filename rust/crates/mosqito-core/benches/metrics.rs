@@ -20,9 +20,12 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use mosqito_core::loudness::ecma::loudness_ecma;
 use mosqito_core::loudness::zwst::{loudness_zwst, FieldType};
 use mosqito_core::loudness::zwtv::loudness_zwtv;
+use mosqito_core::roughness::dw::roughness_dw;
 use mosqito_core::roughness::ecma::roughness_ecma;
 use mosqito_core::sharpness::din::{sharpness_din_st, Weighting};
 use mosqito_core::slm::noct::noct_spectrum;
+use mosqito_core::speech_intelligibility::{sii_ansi, SiiMethod, SiiThreshold, SpeechLevel};
+use mosqito_core::tonality::{pr_ecma_st, tnr_ecma_st};
 
 const FS: f64 = 48000.0;
 
@@ -166,6 +169,67 @@ fn bench_roughness_ecma(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_sii_ansi(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sii_ansi");
+    for (label, sig) in [
+        ("pink_1s", pink_noise(FS as usize, 11)),
+        ("tone_1khz_1s", tone_1khz(FS as usize)),
+    ] {
+        group.bench_with_input(BenchmarkId::from_parameter(label), &sig, |b, sig| {
+            b.iter(|| {
+                sii_ansi(
+                    black_box(sig),
+                    FS,
+                    SiiMethod::Critical,
+                    SpeechLevel::Normal,
+                    SiiThreshold::Zero,
+                )
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_roughness_dw(c: &mut Criterion) {
+    let mut group = c.benchmark_group("roughness_dw");
+    for (label, sig) in [
+        ("pink_1s", pink_noise(FS as usize, 12)),
+        ("pink_10s", pink_noise(10 * FS as usize, 13)),
+        ("tone_1khz_1s", tone_1khz(FS as usize)),
+    ] {
+        group.bench_with_input(BenchmarkId::from_parameter(label), &sig, |b, sig| {
+            b.iter(|| roughness_dw(black_box(sig), FS, 0.5));
+        });
+    }
+    group.finish();
+}
+
+fn bench_tnr_ecma_st(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tnr_ecma_st");
+    for (label, sig) in [
+        ("pink_1s", pink_noise(FS as usize, 14)),
+        ("tone_1khz_1s", tone_1khz(FS as usize)),
+    ] {
+        group.bench_with_input(BenchmarkId::from_parameter(label), &sig, |b, sig| {
+            b.iter(|| tnr_ecma_st(black_box(sig), FS));
+        });
+    }
+    group.finish();
+}
+
+fn bench_pr_ecma_st(c: &mut Criterion) {
+    let mut group = c.benchmark_group("pr_ecma_st");
+    for (label, sig) in [
+        ("pink_1s", pink_noise(FS as usize, 15)),
+        ("tone_1khz_1s", tone_1khz(FS as usize)),
+    ] {
+        group.bench_with_input(BenchmarkId::from_parameter(label), &sig, |b, sig| {
+            b.iter(|| pr_ecma_st(black_box(sig), FS));
+        });
+    }
+    group.finish();
+}
+
 /// Scaling with rayon thread count, on `roughness_ecma` — the metric with
 /// the most parallel work per call (53 bands x (time, band) pairs).
 fn bench_roughness_ecma_thread_scaling(c: &mut Criterion) {
@@ -198,5 +262,9 @@ criterion_group!(
     bench_noct_spectrum,
     bench_roughness_ecma,
     bench_roughness_ecma_thread_scaling,
+    bench_sii_ansi,
+    bench_roughness_dw,
+    bench_tnr_ecma_st,
+    bench_pr_ecma_st,
 );
 criterion_main!(benches);
