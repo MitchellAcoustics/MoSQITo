@@ -1,0 +1,59 @@
+name: Benchmarks
+
+# Manual or nightly, not on every push/PR: these are wall-clock
+# measurements (Criterion + pytest-benchmark), not correctness gates, and
+# take several minutes (roughness_ecma alone is slow, especially on the
+# pure-Python side pytest-benchmark compares against).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily
+
+defaults:
+  run:
+    working-directory: rust
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install maturin numpy scipy pytest pytest-benchmark mosqito
+
+      - name: maturin develop --release
+        run: maturin develop --release
+
+      # Criterion benchmarks: mosqito-rs only, but cover roughness_ecma,
+      # 10 s signals, and rayon thread-count scaling that the pytest-benchmark
+      # comparison below (bounded to keep pure-Python roughness_ecma
+      # tractable) does not.
+      - name: cargo bench (Criterion)
+        run: cargo bench -p mosqito-core
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: criterion-report
+          path: rust/target/criterion
+
+      # mosqito vs. mosqito_rs on identical inputs.
+      - name: pytest-benchmark (mosqito vs. mosqito_rs)
+        run: |
+          pytest tests/test_benchmark.py -v -m benchmark --benchmark-only \
+            --benchmark-json=benchmark.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pytest-benchmark-report
+          path: rust/benchmark.json

@@ -1,0 +1,20 @@
+[package]
+name = "mosqito-py"
+description = "Python bindings for mosqito-core"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+mosqito-core.workspace = true
+ndarray.workspace = true
+numpy = "0.29"
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }

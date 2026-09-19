@@ -1,0 +1,35 @@
+//! ECMA-418-2 (2nd Ed, 2022) Table 1 (outer/middle ear filter SOS
+//! coefficients) and the 53-band absolute-threshold-of-hearing table
+//! `LTQ(z)`.
+//!
+//! Extracted programmatically (via `ast.literal_eval`, not hand-transcribed)
+//! from `_ear_filter_design.py` and `_loudness_ecma_data.py`, to eliminate
+//! transcription risk.
+
+/// Outer/middle ear filter, 8 second-order sections: `[b0, b1, b2, a0, a1,
+/// a2]` per row.
+pub const EAR_FILTER_SOS: [[f64; 6]; 8] = [
+    [1.015896, -1.925299, 0.922118, 1.0, -1.925299, 0.938014],
+    [0.958943, -1.806088, 0.876439, 1.0, -1.806088, 0.835382],
+    [0.961372, -1.763632, 0.821788, 1.0, -1.763632, 0.78316],
+    [2.225804, -1.43465, -0.498204, 1.0, -1.43465, 0.727599],
+    [0.471735, -0.366092, 0.244145, 1.0, -0.366092, -0.28412],
+    [0.115267, 0.0, -0.115267, 1.0, -1.796003, 0.805838],
+    [0.988029, -1.912434, 0.926132, 1.0, -1.912434, 0.914161],
+    [1.952238, 0.16232, -0.667994, 1.0, 0.16232, 0.284244],
+];
+
+/// Absolute threshold of hearing, per critical band `z` (band 0 = lowest).
+pub const LTQ_Z: [f64; 53] = [
+    0.331, 0.1625, 0.1051, 0.0757, 0.0576, 0.0453, 0.0365, 0.0298, 0.0247, 0.0207, 0.0176, 0.0151,
+    0.0131, 0.0115, 0.0103, 0.0093, 0.0086, 0.0081, 0.0077, 0.0074, 0.0073, 0.0072, 0.0071, 0.0072,
+    0.0073, 0.0074, 0.0076, 0.0079, 0.0082, 0.0086, 0.0092, 0.01, 0.0109, 0.0122, 0.0138, 0.0157,
+    0.0172, 0.018, 0.018, 0.0177, 0.0176, 0.0177, 0.0182, 0.019, 0.0202, 0.0217, 0.0237, 0.0263,
+    0.0296, 0.0339, 0.0398, 0.0485, 0.0622,
+];
+
+/// The 53-band Bark axis every ECMA-418-2 specific-value output (loudness,
+/// roughness) shares: band centres at 0.5, 1.0, ..., 26.5 Bark_HMS.
+pub fn bark_axis_53() -> [f64; 53] {
+    std::array::from_fn(|i| 0.5 + i as f64 * 0.5)
+}

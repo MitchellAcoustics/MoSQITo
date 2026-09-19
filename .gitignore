@@ -3,3 +3,9 @@ __pycache__/
 .vscode/
 .ipynb_checkpoints/
 tests/output
+*.egg-info/
+
+# Rust port
+rust/target/
+*.so
+.venv/
