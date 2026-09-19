@@ -11,9 +11,11 @@ MoSQITo's Python. Where the Python is unambiguously a bug relative to the
 standard, `mosqito-rs` fixes it. Where the Python encodes a deliberate,
 standards-sanctioned correction (the ECMA-418-2 roughness deviations from
 Wanty, Glesser & Casagrande Hirono, INTERNOISE 2024), `mosqito-rs` follows the
-same correction. All Phase 1 metrics have landed, so every entry below is
-either **implemented** or **deferred** (Phase 2 scope, identified during
-Phase 1's research but out of scope for it).
+same correction. All Phase 1 metrics have landed; Phase 2 (`roughness_dw`,
+speech intelligibility, the `utils`/generator helpers) is landing
+incrementally, with tonality (TNR/PR) the one metric not yet ported. Every
+entry below is either **implemented** or **deferred** (identified during
+research but out of scope for what has landed so far).
 
 ---
 
@@ -386,23 +388,186 @@ and that's worth explaining rather than leaving as an unexplained number.
 
 ---
 
-## Deferred to Phase 2 (recorded now so they aren't lost)
+## Phase 2
 
-- `roughness_dw/_roughness_dw_main_calc.py:173` — `hBP[i].all() != 0` compares
-  a bool to `0`, which is true almost always; the guard is effectively
-  inert.
-- `_main_sii.py:108` — compares `method` against `"critical_bands"` /
-  `"equal_critical_bands"`, values the validator never allows — dead code.
+### `am_noise_generator`'s RNG does not match NumPy's bit-for-bit
+
+- **MoSQITo**: `mosqito/utils/am_noise_generator.py` draws its Gaussian noise
+  carrier from `numpy.random.default_rng()`, freshly seeded from OS entropy
+  on every call — the function is not reproducible run to run even in the
+  original package.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/generators.rs`'s
+  `am_noise_generator` takes an explicit `seed: u64` (via `rand`'s
+  `StdRng`/`StandardNormal`), rather than reaching for system entropy
+  directly. The Python wrapper (`python/mosqito_rs/generators.py`) keeps
+  MoSQITo's own signature — `seed` is an added optional keyword, defaulting
+  to a freshly drawn seed each call so the *default* behaviour still varies
+  call to call the way MoSQITo's does.
+- **Why**: matching NumPy's PCG64 bit-for-bit is a large, standards-irrelevant
+  undertaking (no standard specifies this generator's carrier), and the
+  function's own contract is statistical (a Gaussian carrier at a target
+  RMS/modulation index), not a specific bit sequence. An explicit seed is
+  strictly more useful than MoSQITo's un-seedable version.
+- **Measured impact**: none on any statistical property (achieved RMS level,
+  modulation index) — verified in `tests/test_generators.py`. The generated
+  *samples* differ from any given MoSQITo run by construction.
+
+### `roughness_dw`'s `hBP[i].all() != 0` guard — reproduced, not fixed
+
+- **MoSQITo**: `roughness_dw/_roughness_dw_main_calc.py:172-173`:
+  `if hBP[i].all() != 0 and hBP[i + 2].all() != 0:` gates which channel pairs
+  get a cross-correlation. `.all() != 0` is equivalent to `.all()` itself (a
+  redundant comparison of a bool to `0`), so this only excludes a channel pair
+  when *every* sample in one row is exactly `0.0` — correct for a channel with
+  literally no excitation (its `hBP` row is then exactly all-zero from
+  `ifft` of an all-zero input), but a single sample landing on exactly zero
+  anywhere else would silently — and incorrectly — exclude an otherwise-excited
+  channel from its correlation.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/roughness/dw/main_calc.rs`
+  reproduces the guard exactly (`h_bp[i].iter().all(|&v| v != 0.0)`).
+- **Why**: no isolated reference exists for this guard alone — only the
+  end-to-end `roughness_dw` output is validated (against the Zwicker & Fastl
+  and Daniel & Weber curves), which were presumably fit/checked against
+  MoSQITo's actual behaviour including this guard.
+- **Measured impact**: none observed — golden-vector tests
+  (`golden_roughness_dw.rs`) match real MoSQITo bit-for-bit on every case
+  exercised, and the guard's failure mode (an exact-zero sample in an
+  otherwise-excited channel) did not occur in any tested signal.
+
+### `roughness_dw`'s negative-index wraparound at `ch_high == -1`
+
+- **MoSQITo**: `_roughness_dw_main_calc.py`'s excitation-reconstruction loop
+  indexes `slopes[j, i-1]` unguarded. For `i == 0`, this is `slopes[j, -1]`,
+  which NumPy's negative indexing silently resolves to the *last* channel
+  (46) rather than raising — but the slope *value* itself was computed with
+  the literal channel index `-1` in its formula, not 46, so the value and the
+  slot it lands in disagree. Only reachable when a component sits at exactly
+  0 Bark (`ch_high[k] == ceil(2*0) - 1 == -1`).
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/roughness/dw/main_calc.rs`
+  reproduces the same wraparound (indexes `N_CHANNEL - 1` when `i == 0` in
+  that branch) for whatever input could reach it, though — unlike Python's
+  silent wraparound — a *different* edge case one branch over (`slopes[j,
+  i+1]` reaching index 47, which raises `IndexError` in Python) is clamped
+  rather than made to panic.
+- **Why**: 0 Bark is not reachable through this crate's public API (every
+  `freq_axis`, from `comp_spectrum`, starts at `df > 0`, never exactly `0`
+  Hz), so neither branch is exercised by any real caller; reproduced anyway
+  in case a future caller of the lower-level `roughness_dw_main_calc` (public
+  in `mosqito-core`, unlike Python's private `_roughness_dw_main_calc`)
+  supplies a spectrum that does include it.
+- **Measured impact**: none — not reachable through `roughness_dw`/
+  `roughness_dw_freq`'s own signatures.
+
+### `_main_sii.py`'s critical-band bandwidth adjustment — dead code, not ported
+
+- **MoSQITo**: `_main_sii.py:108`: `if (method == "critical_bands") or
+  (method == "equal_critical_bands"):` guards a per-band noise-spectrum
+  bandwidth adjustment (`noise_spectrum -= 10*log10(upper - lower)`) — but
+  the only method strings any caller can ever pass are `"critical"`/
+  `"equally_critical"` (checked and rejected earlier in the same call
+  chain), so this branch is unreachable dead code; the adjustment never
+  fires for any input.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/speech_intelligibility/sii.rs`'s
+  `main_sii` does not implement this branch at all.
+- **Why**: ANSI S3.5 §4.3.2 was not consulted in enough depth during this
+  port to confirm whether critical-band noise levels actually require this
+  adjustment; neither of MoSQITo's own validated reference cases
+  (`validations/sq_metrics/speech_intelligibility/validation_sii.py`) uses
+  the critical-band procedures, so there is no corpus in this repository to
+  test the alternative against either. Reproducing the dead code as written
+  (i.e., omitting it) matches MoSQITo's actual, tested behaviour; flagged
+  here rather than silently guessing at "correct" behaviour with nothing to
+  validate it against.
+- **Measured impact**: none observed — `main_sii`'s golden-vector and
+  standards-conformance tests all pass; none of them exercise the critical or
+  equally-critical procedures' bandwidth adjustment.
+
+### SII's `threshold` as an explicit array — fixed, not reproduced
+
+- **MoSQITo**: `_main_sii.py` dispatches on `threshold` with `elif threshold
+  == "zwicker":`. For an array threshold, comparing an array to a string
+  raises `ValueError: The truth value of an array with more than one element
+  is ambiguous` — confirmed directly against the installed package, both
+  through the public `sii_ansi*` wrappers and calling `_main_sii` itself.
+  Real MoSQITo therefore cannot actually accept an explicit array threshold
+  at all, despite documenting the parameter as `array_like or 'zwicker'`.
+- **`mosqito-rs`**: `SiiThreshold::Custom` (`speech_intelligibility/sii.rs`)
+  works as documented instead of reproducing the crash.
+- **Why**: there is no ambiguity in the standard to preserve here — every
+  non-crashing code path is unaffected by fixing this one, and reproducing a
+  `ValueError` crash as the "correct" behaviour for a documented parameter
+  would make that parameter unusable for no standards reason.
+- **Measured impact**: `SiiThreshold::Custom` is unit-tested directly
+  (`speech_intelligibility/sii.rs`'s `custom_threshold_*` tests) rather than
+  differentially, since there is no working Python call to compare against.
+
+### `_H_weighting.py`'s three curves share one truncated frequency range
+
+- **MoSQITo**: `_H_weighting.py` computes the highest bin index to fill
+  (`last`) from each curve's own top x-value for `H2` (358 Hz) and `H5`
+  (502 Hz) — then *reuses* `H5`'s `last` for `H16`, `H21` and `H42` too,
+  instead of recomputing it from their own top x-values (each 645 Hz). Every
+  bin past 502 Hz's index in those three curves is left at zero, even though
+  their tables define values out to 645 Hz.
+- **`mosqito-rs`**: `rust/crates/mosqito-core/src/roughness/dw/h_weighting.rs`
+  reproduces this exactly (see the module's own doc comment for the detailed
+  trace).
+- **Why**: no isolated reference for `_H_weighting` alone exists to confirm
+  whether this is intentional or a transcription slip — only the end-to-end
+  `roughness_dw` output is validated.
+- **Measured impact**: `h_weighting_matches_mosqito`
+  (`golden_roughness_dw.rs`) checks this bit-for-bit against real MoSQITo.
+
+### Not a 100% gate — `roughness_dw` vs. the Zwicker & Fastl curve
+
+`roughness_dw`'s own conformance gate (`conformance_roughness_dw.rs`, ±0.1
+asper against the digitised Zwicker & Fastl curve) allows ~10% of its
+84-point (fc, fmod) grid to fall outside tolerance, concentrated at
+`fc=2000, fmod>=80`. This is not a port defect: running the installed
+MoSQITo package directly on the same stimuli reproduces the same shortfall
+against the same digitised curve, bit-for-bit with this port's own output
+(`golden_roughness_dw.rs`). Daniel & Weber's algorithm — or specifically
+MoSQITo's implementation of it — does not reach full compliance with the
+Zwicker & Fastl curve at that carrier frequency; the gate reflects the
+achievable pass rate rather than asserting an unreachable 100%, the same
+principle `roughness_ecma`'s own ≤1-point exception budget applies.
+
+### Residual floating-point differences in `roughness_dw`'s FFT chain
+
+Like `roughness_ecma` (see above), `roughness_dw`'s pipeline chains several
+FFT/IFFT passes (`comp_spectrum`'s own FFT, plus per-channel
+excitation/envelope FFTs in `_roughness_dw_main_calc`) through `rustfft`
+rather than NumPy's FFT. Every stage matches real MoSQITo bit-for-bit in
+isolation and end-to-end on a captured snapshot
+(`golden_roughness_dw.rs`, ~1e-6 relative), but comparing two *live* FFT
+implementations directly (`tests/test_roughness_dw.py`, Rust vs. an
+installed `mosqito` in the same process) shows ~1e-4 relative agreement
+instead — the accumulated rounding difference is larger for `roughness_dw`'s
+9600-point transforms than for the smaller cases the golden-vector snapshots
+use. Not a behavioural deviation; recorded because the differential test
+needed a looser tolerance than this crate's other differential checks.
+
+## Deferred to Phase 2 (tonality — not yet ported)
+
 - `tnr_ecma_perseg.py:127` / `pr_ecma_perseg.py:129` — the pre-segmented-input
-  branch references an undefined `sig`.
+  (2-D signal) branch references an undefined `sig`. Planned resolution:
+  scope the Rust port to the 1-D-signal branch only, the same
+  scope-narrowing already applied to `loudness_zwst_freq`/`noct_synthesis`'s
+  2-D cases, rather than "fixing" undefined behaviour nothing exercises.
 - `pytest.ini:8` — `roughness_dw_freq:` is unindented, so that marker is
-  never registered by pytest.
+  never registered by pytest. Python-repo-only; irrelevant to
+  `rust/pyproject.toml`'s own (correct) marker list.
 - TNR/PR has no standard-anchored reference in the MoSQITo repository at all
-  — only regression pins against MoSQITo's own past output at `decimal=7`.
-  Under a standards-conformance target these pins are not expected to hold;
-  whether to build an ECMA-74 worked-example reference or defer TNR/PR
-  indefinitely is an open decision for Phase 2, not a deviation to record yet.
+  — only regression pins against MoSQITo's own past output at `decimal=7`,
+  and a single orphan wav
+  (`validations/sq_metrics/tonality_tnr_pr/white_noise_tone_at_442_Hz.wav`)
+  with no validation script. Under a standards-conformance target these pins
+  are not expected to hold; planned approach is golden vectors against real
+  MoSQITo plus sanity/inequality checks (an injected tone is detected,
+  prominent, and located at its own frequency ± one FFT bin), the same
+  approach `loudness_ecma` used where no digitised standard corpus exists.
 - ECMA-418-2 **specific** roughness (per-band, not aggregate `R`) is validated
   in MoSQITo only against commercial HEAD Artemis output at ±10%
   (`validation_specific_roughness_ecma.xlsx`), not against the standard
-  itself.
+  itself. (Carried over from Phase 1; still unaddressed, out of scope for
+  either phase without access to that commercial reference.)

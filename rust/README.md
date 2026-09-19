@@ -34,6 +34,20 @@ Every metric is also validated against golden vectors captured from the real
 `mosqito` package, and (for the metrics with an independent reference
 implementation) cross-checked against `sottek-hearing-model`.
 
+## What's implemented (Phase 2)
+
+| Metric | Standard | Conformance gate |
+| --- | --- | --- |
+| `sii_ansi` / `sii_ansi_freq` / `sii_ansi_level` | ANSI S3.5-1997 | Standard's own worked example, wider of ±1% or ±0.01 |
+| `roughness_dw` (+ `_freq`) | Daniel & Weber (1997) | Zwicker-Fastl reference curve, ±0.1 asper, ≥90% of the 84-point (fc, fmod) grid (MoSQITo's own implementation does not reach 100% either — confirmed directly) |
+| `utils` conversions (`bark2freq`, `freq2bark`, `db2amp`, `spectrum2dBA`, `LTQ`) | — | Golden vectors against MoSQITo |
+| `sound_level_meter` (`comp_spectrum`, `freq_band_synthesis`) | — | Golden vectors against MoSQITo |
+| Signal generators (`sine_wave`, `am_sine`, `am_noise`, `fm_sine`) | — | Golden vectors / statistical checks against MoSQITo (`am_noise_generator`'s RNG is seeded, not bit-parity with `numpy.random.default_rng` — see `DEVIATIONS.md`) |
+| `sone_to_phon`, `equal_loudness_contours` | ISO 226 | Golden vectors against MoSQITo |
+
+Tonality (TNR/PR, ECMA-74/TR-108) is Phase 2's one remaining metric — not yet
+ported; see `DEVIATIONS.md`'s "Deferred to Phase 2" section.
+
 ## Layout
 
 | Path | What it is |
