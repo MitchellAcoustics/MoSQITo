@@ -46,7 +46,8 @@ def test_loudness_ecma_matches_mosqito():
     # one array element right at that boundary.
     np.testing.assert_allclose(np.asarray(n_spec_rs), np.asarray(n_spec_py), rtol=1e-5, atol=1e-9)
     np.testing.assert_allclose(bark_rs, bark_py)
-    np.testing.assert_allclose(time_rs, np.asarray(time_py[0]))
+    assert time_rs.shape == (53, len(n_time_rs))
+    np.testing.assert_allclose(time_rs, np.asarray(time_py))
 
 
 @pytest.mark.differential

@@ -204,6 +204,17 @@ This also means `N_specific` is a plain `(53, n_blocks)` array here, not a
 list of 53 possibly-different-length arrays — a consequence of the scalar
 restriction, not an independent behavioural choice.
 
+`_ecma_time_segmentation` likewise returns `time_array` as a list of 53
+per-band time axes even for a scalar `sb`/`sh` — identical across bands in
+that case (same block layout for every band), but still 53 rows deep, and
+MoSQITo's own example indexes it as `time_array[0]`. `mosqito-core`'s Rust
+function computes the shared axis once (there is no reason to repeat 53
+identical 1-D arrays internally), and `python/mosqito_rs/loudness_ecma.py`
+broadcasts it to the documented `(53, Ntime)` shape before returning —
+caught by a GitHub code-review bot on PR #2 (the differential test at the
+time only compared `time_py[0]`, hiding the shape mismatch); fixed and the
+test now compares the full array.
+
 ### Dead code not ported — `_band_pass_signals.py`'s `_rectified_band_pass_signals`
 
 A second, unused function duplicating `_band_pass_signals` plus

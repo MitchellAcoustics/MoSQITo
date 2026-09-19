@@ -8,8 +8,15 @@ use ndarray::Array2;
 /// `noverlap` is, despite the name, a **hop size**: consecutive blocks start
 /// `noverlap` samples apart, and block `l` covers samples
 /// `[l*noverlap, l*noverlap + nperseg)`. It defaults to `nperseg / 2`
-/// (50% overlap); passing `Some(0)` is treated as `nperseg` (no overlap),
-/// matching `time_segmentation.py:39-40`.
+/// (50% overlap); a hop of `0` — whether from an explicit `Some(0)` or from
+/// the default rounding down to `0` (only possible for `nperseg == 1`) — is
+/// treated as `nperseg` (no overlap) instead, matching
+/// `time_segmentation.py:36-40`'s post-hoc `if noverlap == 0: noverlap =
+/// nperseg` check, which applies after computing the default too. Applying
+/// the fallback only to the explicit case (not the computed-default one)
+/// left `nperseg == 1` with no default noverlap, `hop == 0`, and every
+/// candidate start passing `l*0 + 1 <= len` — an infinite loop, caught by
+/// review rather than by a test with `nperseg == 1`.
 ///
 /// Returns `(blocks, time)`: `blocks` is (`nperseg`, `nseg`), one column per
 /// block; `time` holds each block's mean sample time, in seconds.
@@ -27,9 +34,9 @@ pub fn time_segmentation(
 
     let hop = match noverlap {
         None => nperseg / 2,
-        Some(0) => nperseg,
         Some(h) => h,
     };
+    let hop = if hop == 0 { nperseg } else { hop };
 
     let mut starts = Vec::new();
     let mut l = 0usize;
@@ -71,6 +78,19 @@ mod tests {
             blocks.column(3).to_vec(),
             vec![15.0, 16.0, 17.0, 18.0, 19.0]
         );
+    }
+
+    #[test]
+    fn a_single_sample_block_with_the_default_hop_does_not_hang() {
+        // nperseg == 1 makes the default hop (nperseg / 2) round down to 0;
+        // regression test for the infinite loop that produced (an unfixed
+        // Rust port took `0` literally as a zero-length stride, so every
+        // candidate start satisfied the loop condition forever).
+        let sig: Vec<f64> = (0..5).map(|i| i as f64).collect();
+        let (blocks, time) = time_segmentation(&sig, 1.0, 1, None);
+        assert_eq!(blocks.shape(), &[1, 5]);
+        assert_eq!(blocks.row(0).to_vec(), sig);
+        assert_eq!(time, vec![0.0, 1.0, 2.0, 3.0, 4.0]);
     }
 
     #[test]

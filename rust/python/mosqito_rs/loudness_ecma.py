@@ -48,9 +48,16 @@ def loudness_ecma(
     bark_axis : numpy.ndarray
         Bark axis, shape ``(53,)``.
     time_axis : numpy.ndarray
-        Time axis [s], shape ``(Ntime,)`` — shared by all bands, since a
-        scalar ``sb``/``sh`` gives every band the same block layout (unlike
-        MoSQITo's Python, which returns one time axis per band regardless).
+        Time axis [s], shape ``(53, Ntime)`` — matching MoSQITo's Python,
+        which returns one time axis per band (`time_axis[0]` is used
+        directly in its own example). A scalar ``sb``/``sh`` gives every
+        band the same block layout, so all 53 rows are identical; the Rust
+        core computes the shared axis once and this wrapper broadcasts it
+        to the documented per-band shape.
     """
     signal = np.ascontiguousarray(signal, dtype=np.float64)
-    return _core.loudness_ecma(signal, float(fs), int(sb), int(sh))
+    n, n_time, n_specific, bark_axis, time_axis = _core.loudness_ecma(
+        signal, float(fs), int(sb), int(sh)
+    )
+    time_axis = np.tile(time_axis, (53, 1))
+    return n, n_time, n_specific, bark_axis, time_axis
