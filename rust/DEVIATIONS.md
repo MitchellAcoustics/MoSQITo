@@ -748,25 +748,31 @@ a differential pytest cross-check through the public Python API
   MoSQITo output in `tests/test_utils.py`; `is_ecma=True` was never
   reachable through this shared function in the first place for this port.
 
-### `load` and `isoclose` — not ported
+### `load` — ported for `.wav` only; `isoclose` not ported
 
 - **MoSQITo**: `mosqito.utils.load` reads a `.wav`/`.mat`/`.uff` file,
   resamples to 48 kHz, and applies a calibration factor — file I/O, not a
   psychoacoustic algorithm; `.uff` support pulls in `pyuff`, a niche
-  dependency for LMS Test.Lab-style file interchange. `mosqito.utils.isoclose`
+  dependency for LMS Test.Lab-style file interchange, and `.mat` needs
+  `scipy.io.loadmat` plus caller-supplied variable names. `mosqito.utils.isoclose`
   is a test/compliance-plotting helper (ISO 532-1 §5.1-style tolerance-band
   comparison) with a hard `matplotlib` dependency, used only in MoSQITo's own
   validation scripts, not by any metric.
-- **`mosqito-rs`**: neither is ported. This port's own test suite
-  reimplements the `.wav` calibration directly where it needs it
-  (`tests/conftest.py`'s `load_wav_calibrated`, matching
-  `mosqito/utils/load.py:43-89`'s exact int16/int32 calibration) rather than
-  depending on `mosqito.utils.load`, and uses plain `numpy.testing`
-  tolerance assertions in place of `isoclose`'s plotting-oriented comparison.
-- **Why**: neither function is a psychoacoustic metric this port's standards-
-  conformance mission covers; both are one-time, non-hot-path convenience
-  utilities better served by calling `scipy.io.wavfile`/`numpy.testing`
-  directly than by adding a Rust implementation (`load`) or a `matplotlib`
-  dependency (`isoclose`) to this crate.
-- **Measured impact**: none — no metric in this port depends on either
-  function.
+- **`mosqito-rs`**: `python/mosqito_rs/utils.py`'s `load` is a thin
+  **pure-Python** function (no Rust work — file I/O and a one-time
+  `scipy.signal.resample` call, not a hot path) matching MoSQITo's `.wav`
+  branch exactly, including its int16/int32/float calibration and the
+  resample-to-48kHz step; `.mat`/`.uff` raise `NotImplementedError`.
+  `isoclose` is not ported at all. This port's own test suite separately
+  reimplements the same `.wav` calibration where it needs it without
+  depending on either (`tests/conftest.py`'s `load_wav_calibrated`), and
+  uses plain `numpy.testing` tolerance assertions in place of `isoclose`'s
+  plotting-oriented comparison.
+- **Why**: `load`'s `.wav` case is cheap to match exactly and completes the
+  "switching is an import change" promise for the common case; `.mat`/`.uff`
+  and `isoclose` are one-time, non-hot-path utilities better served by
+  calling `scipy.io.loadmat`/`numpy.testing` directly than by adding
+  `pyuff`/`matplotlib` dependencies to this project for functionality no
+  metric here depends on.
+- **Measured impact**: none on any metric — differential-tested directly
+  against `mosqito.utils.load` in `tests/test_utils.py`.
