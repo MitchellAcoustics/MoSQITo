@@ -49,6 +49,7 @@
 //! low-frequency/Nyquist-edge positions observed. See `DEVIATIONS.md`.
 
 use super::get_frequencies::get_frequencies;
+use crate::dsp::nearest_index as argmin_abs_diff;
 
 /// Matches `_spectrum_smoothing(freqs_in, spec, noct, low_freq, high_freq,
 /// freqs_out)`.
@@ -152,19 +153,6 @@ pub fn spectrum_smoothing(
     }
 
     smooth_spec
-}
-
-fn argmin_abs_diff(row: &[f64], target: f64) -> usize {
-    let mut best_idx = 0;
-    let mut best_diff = (row[0] - target).abs();
-    for (idx, &v) in row.iter().enumerate().skip(1) {
-        let d = (v - target).abs();
-        if d < best_diff {
-            best_diff = d;
-            best_idx = idx;
-        }
-    }
-    best_idx
 }
 
 #[cfg(test)]

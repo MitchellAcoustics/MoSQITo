@@ -51,6 +51,17 @@ fn resolve_threshold(use_zwicker: bool, custom: &Option<Vec<f64>>) -> SiiThresho
 
 type SiiPyResult<'py> = (f64, Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>);
 
+fn to_py_result(
+    py: Python<'_>,
+    (sii, sii_spec, freq_axis): (f64, Vec<f64>, Vec<f64>),
+) -> SiiPyResult<'_> {
+    (
+        sii,
+        Array1::from(sii_spec).into_pyarray(py),
+        Array1::from(freq_axis).into_pyarray(py),
+    )
+}
+
 /// Matches `sii_ansi(noise, fs, method, speech_level, threshold)`.
 #[allow(clippy::too_many_arguments)]
 #[pyfunction]
@@ -70,13 +81,8 @@ pub fn sii_ansi<'py>(
     let custom: Option<Vec<f64>> = custom_threshold.map(|a| a.as_slice().unwrap().to_vec());
     let threshold = resolve_threshold(use_zwicker_threshold, &custom);
 
-    let (sii, sii_spec, freq_axis) =
-        core_sii::sii_ansi(noise.as_slice()?, fs, method, speech_level, threshold);
-    Ok((
-        sii,
-        Array1::from(sii_spec).into_pyarray(py),
-        Array1::from(freq_axis).into_pyarray(py),
-    ))
+    let result = core_sii::sii_ansi(noise.as_slice()?, fs, method, speech_level, threshold);
+    Ok(to_py_result(py, result))
 }
 
 /// Matches `sii_ansi_freq(spectrum, freqs, method, speech_level, threshold)`.
@@ -98,18 +104,14 @@ pub fn sii_ansi_freq<'py>(
     let custom: Option<Vec<f64>> = custom_threshold.map(|a| a.as_slice().unwrap().to_vec());
     let threshold = resolve_threshold(use_zwicker_threshold, &custom);
 
-    let (sii, sii_spec, freq_axis) = core_sii::sii_ansi_freq(
+    let result = core_sii::sii_ansi_freq(
         spectrum.as_slice()?,
         freqs.as_slice()?,
         method,
         speech_level,
         threshold,
     );
-    Ok((
-        sii,
-        Array1::from(sii_spec).into_pyarray(py),
-        Array1::from(freq_axis).into_pyarray(py),
-    ))
+    Ok(to_py_result(py, result))
 }
 
 /// Matches `sii_ansi_level(noise_level, method, speech_level, threshold)`.
@@ -129,11 +131,6 @@ pub fn sii_ansi_level<'py>(
     let custom: Option<Vec<f64>> = custom_threshold.map(|a| a.as_slice().unwrap().to_vec());
     let threshold = resolve_threshold(use_zwicker_threshold, &custom);
 
-    let (sii, sii_spec, freq_axis) =
-        core_sii::sii_ansi_level(noise_level, method, speech_level, threshold);
-    Ok((
-        sii,
-        Array1::from(sii_spec).into_pyarray(py),
-        Array1::from(freq_axis).into_pyarray(py),
-    ))
+    let result = core_sii::sii_ansi_level(noise_level, method, speech_level, threshold);
+    Ok(to_py_result(py, result))
 }

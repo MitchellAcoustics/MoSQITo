@@ -69,6 +69,24 @@ pub fn interp(x: &[f64], xp: &[f64], fp: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+/// Index of the element of `values` closest to `target`.
+///
+/// On a tie, returns the first (lowest-index) of the equally-close elements —
+/// matching `numpy.argmin`'s first-occurrence tie-breaking, which every
+/// caller here relies on for exact index selection on golden-vector-checked
+/// paths.
+///
+/// # Panics
+/// Panics if `values` is empty.
+pub fn nearest_index(values: &[f64], target: f64) -> usize {
+    values
+        .iter()
+        .enumerate()
+        .min_by(|(_, &a), (_, &b)| (a - target).abs().total_cmp(&(b - target).abs()))
+        .map(|(i, _)| i)
+        .expect("values must be non-empty")
+}
+
 /// Monotone piecewise cubic Hermite interpolation (Fritsch–Carlson), matching
 /// `scipy.interpolate.pchip_interpolate`.
 ///

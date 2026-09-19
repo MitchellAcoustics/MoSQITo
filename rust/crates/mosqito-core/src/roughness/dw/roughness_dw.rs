@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use super::gzi_weighting::gzi_weighting;
 use super::h_weighting::h_weighting;
-use super::main_calc::roughness_dw_main_calc;
+use super::main_calc::{channel_centres, roughness_dw_main_calc};
 use crate::slm::{comp_spectrum_complex, SpectrumWindow};
 use crate::utils::time_segmentation;
 
@@ -15,10 +15,6 @@ const N_CHANNEL: usize = 47;
 
 /// `(R, R_spec, bark_axis, time_axis)` — [`roughness_dw`]'s result.
 type RoughnessDwSegResult = (Vec<f64>, Array2<f64>, [f64; N_CHANNEL], Vec<f64>);
-
-fn channel_centres() -> [f64; N_CHANNEL] {
-    std::array::from_fn(|i| (i + 1) as f64 / 2.0)
-}
 
 /// Computes Daniel & Weber roughness from a time signal, matching
 /// `roughness_dw(signal, fs, overlap)`.

@@ -13,6 +13,11 @@ const N_CHANNEL: usize = 47;
 /// `(R, R_spec, bark_axis)` — one spectrum's roughness.
 pub type RoughnessDwResult = (f64, [f64; N_CHANNEL], [f64; N_CHANNEL]);
 
+/// The 47 channel centres, in Bark, `0.5, 1.0, ..., 23.5`.
+pub(crate) fn channel_centres() -> [f64; N_CHANNEL] {
+    std::array::from_fn(|i| (i + 1) as f64 / 2.0)
+}
+
 /// Computes Daniel & Weber roughness from one amplitude-or-complex spectrum.
 ///
 /// `spec` is the one-sided spectrum (real amplitude, or complex — a real
@@ -72,7 +77,7 @@ pub fn roughness_dw_main_calc(
         .map(|&ind| (-24.0 - 230.0 / freq_axis[ind] + 0.2 * spec_db[ind]).min(0.0))
         .collect();
 
-    let zi: [f64; N_CHANNEL] = std::array::from_fn(|i| (i + 1) as f64 / 2.0);
+    let zi: [f64; N_CHANNEL] = channel_centres();
     // Channel centres, expressed on the same 1-indexed sample-position scale
     // `threshold` (length n_orig) is defined over, matching
     // `bark2freq(zi) * n / fs` then `interp(zb, nZ, threshold)` with

@@ -22,6 +22,17 @@ fn population_std(x: &[f64]) -> f64 {
     (x.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / n).sqrt()
 }
 
+/// Scales `y` in place so its population standard deviation matches the RMS
+/// pressure of `spl_level` dB SPL, matching each generator's shared
+/// `A_rms = P_REF * 10**(spl_level/20); y *= A_rms / y.std()` tail.
+fn normalize_to_spl(y: &mut [f64], spl_level: f64) {
+    let a_rms = P_REF * 10f64.powf(spl_level / 20.0);
+    let scale = a_rms / population_std(y);
+    for v in y.iter_mut() {
+        *v *= scale;
+    }
+}
+
 /// Generates a sine wave at `spl_level` dB SPL, matching
 /// `sine_wave_generator(fs, d, freq, spl_level)`.
 ///
@@ -62,11 +73,7 @@ pub fn am_sine_generator(xmod: &[f64], fs: f64, fc: f64, spl_level: f64) -> (Vec
 
     let m = xmod.iter().fold(0.0f64, |acc, &x| acc.max(x.abs()));
 
-    let a_rms = P_REF * 10f64.powf(spl_level / 20.0);
-    let scale = a_rms / population_std(&y_am);
-    for v in &mut y_am {
-        *v *= scale;
-    }
+    normalize_to_spl(&mut y_am, spl_level);
 
     (y_am, m)
 }
@@ -89,11 +96,7 @@ pub fn am_noise_generator(xmod: &[f64], spl_level: f64, seed: u64) -> (Vec<f64>,
 
     let m = xmod.iter().fold(0.0f64, |acc, &x| acc.max(x.abs()));
 
-    let a_rms = P_REF * 10f64.powf(spl_level / 20.0);
-    let scale = a_rms / population_std(&y_am);
-    for v in &mut y_am {
-        *v *= scale;
-    }
+    normalize_to_spl(&mut y_am, spl_level);
 
     (y_am, m)
 }
@@ -132,11 +135,7 @@ pub fn fm_sine_generator(
 
     let f_delta = k * xmod.iter().fold(0.0f64, |acc, &x| acc.max(x.abs()));
 
-    let a_rms = P_REF * 10f64.powf(spl_level / 20.0);
-    let scale = a_rms / population_std(&y_fm);
-    for v in &mut y_fm {
-        *v *= scale;
-    }
+    normalize_to_spl(&mut y_fm, spl_level);
 
     (y_fm, inst_freq, f_delta, m)
 }

@@ -18,7 +18,7 @@
 
 use std::borrow::Cow;
 
-use crate::dsp::interp;
+use crate::dsp::{interp, nearest_index};
 
 /// Sums `spectrum_db` (a dB spectrum on `freqs`) into the frequency bands
 /// `[fmin[i], fmax[i])`, on an energy basis.
@@ -116,15 +116,6 @@ fn arange(start: f64, stop: f64, step: f64) -> Vec<f64> {
         0
     };
     (0..count).map(|k| start + k as f64 * step).collect()
-}
-
-fn nearest_index(freqs: &[f64], target: f64) -> usize {
-    freqs
-        .iter()
-        .enumerate()
-        .min_by(|(_, &a), (_, &b)| (a - target).abs().total_cmp(&(b - target).abs()))
-        .map(|(i, _)| i)
-        .expect("freqs must be non-empty")
 }
 
 #[cfg(test)]

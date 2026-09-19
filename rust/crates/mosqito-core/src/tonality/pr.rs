@@ -5,19 +5,7 @@
 use super::critical_band::{critical_band, lower_critical_band, upper_critical_band};
 use super::find_highest_tone::find_highest_tone;
 use super::screening::screening_for_tones;
-
-fn argmin_abs_diff(row: &[f64], target: f64) -> usize {
-    let mut best_idx = 0;
-    let mut best_diff = (row[0] - target).abs();
-    for (idx, &v) in row.iter().enumerate().skip(1) {
-        let d = (v - target).abs();
-        if d < best_diff {
-            best_diff = d;
-            best_idx = idx;
-        }
-    }
-    best_idx
-}
+use crate::dsp::nearest_index as argmin_abs_diff;
 
 /// Per-segment PR results, matching `_pr_main_calc`'s return tuple.
 pub struct PrResult {

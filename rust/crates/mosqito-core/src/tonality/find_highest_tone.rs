@@ -2,19 +2,7 @@
 //! tie-breaking between multiple tonal candidates.
 
 use super::critical_band::critical_band;
-
-fn argmin_abs_diff(row: &[f64], target: f64) -> usize {
-    let mut best_idx = 0;
-    let mut best_diff = (row[0] - target).abs();
-    for (idx, &v) in row.iter().enumerate().skip(1) {
-        let d = (v - target).abs();
-        if d < best_diff {
-            best_diff = d;
-            best_idx = idx;
-        }
-    }
-    best_idx
-}
+use crate::dsp::nearest_index as argmin_abs_diff;
 
 /// Finds the two highest-level tones within the critical band centred on
 /// `freqs[ind]`, matching `_find_highest_tone`.

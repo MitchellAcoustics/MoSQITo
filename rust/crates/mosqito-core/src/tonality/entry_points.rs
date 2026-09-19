@@ -12,6 +12,7 @@ use ndarray::Array2;
 
 use super::pr::{pr_main_calc, PrResult};
 use super::tnr::{tnr_main_calc, TnrResult};
+use crate::dsp::nearest_index;
 use crate::slm::{comp_spectrum_db, SpectrumWindow};
 use crate::utils::{amp2db, time_segmentation};
 
@@ -86,15 +87,7 @@ fn regrid(
     for s in 0..nseg {
         for f in 0..tones_freqs[s].len() {
             let target = tones_freqs[s][f];
-            let mut best_idx = 0;
-            let mut best_diff = (freqs[0] - target).abs();
-            for (idx, &v) in freqs.iter().enumerate().skip(1) {
-                let d = (v - target).abs();
-                if d < best_diff {
-                    best_diff = d;
-                    best_idx = idx;
-                }
-            }
+            let best_idx = nearest_index(&freqs, target);
             let is_prom = prom_in[s][f];
             if !prominence_only || is_prom {
                 values[[best_idx, s]] = values_in[s][f];
