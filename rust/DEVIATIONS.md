@@ -547,25 +547,116 @@ instead — the accumulated rounding difference is larger for `roughness_dw`'s
 use. Not a behavioural deviation; recorded because the differential test
 needed a looser tolerance than this crate's other differential checks.
 
-## Deferred to Phase 2 (tonality — not yet ported)
+## Phase 2 — tonality (TNR/PR)
 
-- `tnr_ecma_perseg.py:127` / `pr_ecma_perseg.py:129` — the pre-segmented-input
-  (2-D signal) branch references an undefined `sig`. Planned resolution:
-  scope the Rust port to the 1-D-signal branch only, the same
-  scope-narrowing already applied to `loudness_zwst_freq`/`noct_synthesis`'s
-  2-D cases, rather than "fixing" undefined behaviour nothing exercises.
-- `pytest.ini:8` — `roughness_dw_freq:` is unindented, so that marker is
+`tone_to_noise_ecma`/`prominence_ratio_ecma` share one `tonality` module
+(critical bands, threshold of hearing, spectrum smoothing, candidate
+screening, within-band tie-breaking), with `tnr`/`pr` as thin orchestration
+on top, mirroring `sharpness::din`'s four-weightings-share-one-integral
+shape. TNR/PR has no standards-anchored numeric reference anywhere in
+MoSQITo's own repository — only a single orphan wav
+(`validations/sq_metrics/tonality_tnr_pr/white_noise_tone_at_442_Hz.wav`)
+with no validation script, confirmed by directory listing. Validated instead
+via extensive golden vectors captured directly from MoSQITo's private
+functions at every stage (`_critical_band`/`_lower_critical_band`/
+`_upper_critical_band`, `_LTH`, `_getFrequencies`, `_spectrum_smoothing`,
+`_screening_for_tones`, `_tnr_main_calc`/`_pr_main_calc` for both a single
+spectrum and multiple segments sharing one frequency axis) and the full
+`tnr_ecma_*`/`pr_ecma_*` entry points on a two-tone-plus-noise stimulus, plus
+a differential pytest cross-check through the public Python API
+(`tests/test_tonality.py`).
+
+- **`tnr_ecma_perseg.py:127` / `pr_ecma_perseg.py:129`** — the
+  pre-segmented-input (2-D signal) branch references an undefined `sig` (a
+  real `NameError`, confirmed by direct read and by triggering it), never
+  exercised by any test in MoSQITo. Not ported: this port's
+  `tnr_ecma_perseg`/`pr_ecma_perseg` implement the 1-D-signal branch only,
+  the same scope-narrowing already applied to `loudness_zwst_freq`/
+  `noct_synthesis`'s 2-D cases.
+- **`pytest.ini:8`** — `roughness_dw_freq:` is unindented, so that marker is
   never registered by pytest. Python-repo-only; irrelevant to
   `rust/pyproject.toml`'s own (correct) marker list.
-- TNR/PR has no standard-anchored reference in the MoSQITo repository at all
-  — only regression pins against MoSQITo's own past output at `decimal=7`,
-  and a single orphan wav
-  (`validations/sq_metrics/tonality_tnr_pr/white_noise_tone_at_442_Hz.wav`)
-  with no validation script. Under a standards-conformance target these pins
-  are not expected to hold; planned approach is golden vectors against real
-  MoSQITo plus sanity/inequality checks (an injected tone is detected,
-  prominent, and located at its own frequency ± one FFT bin), the same
-  approach `loudness_ecma` used where no digitised standard corpus exists.
+- **`_screening_for_tones`'s `"not-smoothed"` method** — the Aures/Terhardt
+  alternative to the Bray & Caspary `"smoothed"` criteria. Every real caller
+  (`_tnr_main_calc`, `_pr_main_calc`) hardcodes `method="smoothed"`, so
+  `"not-smoothed"` is dead code from the public API's perspective. Not
+  ported, matching this project's precedent of narrowing to what's actually
+  reachable (e.g. `noct_synthesis`'s unexercised 2-D sub-cases).
+- **`_spectrum_smoothing`'s `.ravel()`-order mismatch.** Python ravels its
+  `freqs_in` argument (shape `(nseg, nfreqs)`) **segment-major** but
+  separately ravels `spec` (already transposed to `(nfreqs, nseg)` at the
+  call site) **frequency-major**, then indexes both flat arrays with the
+  same position-based `bin_index`/`stop` machinery — implicitly assuming a
+  flat position means the same thing in both, which is false for `nseg >
+  1`. Very likely an unintentional bug (a `.T` before `.ravel()` changing
+  iteration order is an easy mistake), but it's real MoSQITo behaviour with
+  no standard to contradict it, so `mosqito-core::tonality::spectrum_smoothing`
+  reproduces it exactly — see the function's own doc comment. Confirmed
+  behaviourally significant (not inert) by testing: an earlier attempt at a
+  "corrected" single consistent raveling order failed the multi-segment
+  golden vectors captured from real MoSQITo.
+- **`_spectrum_smoothing`'s `nb_bands`/`i` bookkeeping bug.** Its `while
+  nb_bands > 0` loop decrements `nb_bands` *twice* when a 1/24-octave band's
+  frequency range matches no spectral bin (once inside the `if`, once
+  unconditionally after) but only removes *one* array element and always
+  advances `i` by exactly one — so the loop can terminate before visiting
+  every band, and does not re-align `i` to the post-removal array shape
+  either. Reproduced exactly (see the function's doc comment); not "fixed",
+  since it's paired with the deliberately-not-reproduced item below and
+  changing one without the other would invalidate the golden-vector
+  comparison this was validated against.
+- **`_spectrum_smoothing`'s uninitialised-memory placement gaps — not
+  reproduced.** The bug above (plus coarse low/high frequency-to-grid-index
+  snapping near the low-frequency edge) can leave some output positions
+  never written by any band's `smooth_spec[low:high, i] = ...` slice.
+  Real MoSQITo's `smooth_spec = numpy.empty(...)` then returns whatever was
+  already in that memory — confirmed directly (a subnormal float and other
+  implausible values were observed at those positions, not a stable or
+  algorithmically meaningful result). This port fills any such gap with
+  `0.0` instead: a defined, deterministic choice. Verified inert for every
+  signal in `golden_tonality.rs`/`test_tonality.py`: the screening criterion
+  this feeds (`spec_db[temp] > smooth_spec[temp] + 6`) only ever reads it at
+  genuine local-maxima positions, none of which fell in the observed
+  low-frequency/Nyquist-edge dead zones (9 of 943 positions in the
+  multi-segment golden case). Reproducing non-deterministic memory contents
+  bit-for-bit isn't meaningful to begin with — there is no single "correct"
+  value to match.
+- **A fresh `_getFrequencies` port, not a reuse of `slm::center_freq`/
+  `filter_bandwidth`.** Phase 1's `center_freq` rounds `log(f/fr)/log(u)` to
+  the nearest band number and `filter_bandwidth` derives bandwidth from a
+  Butterworth quality factor — genuinely different formulas from
+  `_getFrequencies`'s direct increment-and-test loop and its `G^(±1/(2b))`
+  band-edge ratio. Reusing the Phase 1 functions here would have been an
+  unverified assumption of equivalence between two different algorithms;
+  `mosqito-core::tonality::get_frequencies` instead matches
+  `_getFrequencies` line for line.
+- **`_lower_critical_band`/`_upper_critical_band`'s confusingly-renamed
+  tuple unpacking.** `_lower_critical_band` does `f2, _ = _critical_band(f0)`
+  — assigning `_critical_band`'s **first** return value (the central band's
+  lower edge) to a local variable it calls `f2`. `_upper_critical_band`
+  does the mirror: `_, f1 = _critical_band(f0)`, assigning the central
+  band's **upper** edge to a local `f1`. Not a bug — the lower/upper bands
+  genuinely are meant to be contiguous with the central one at exactly
+  those edges, confirmed against real MoSQITo output (`lf2 == cf1`, `uf1 ==
+  cf2` to machine precision) — but the naming inverted this port's first
+  attempt at a direct translation (`critical_band`'s tuple element mapped to
+  the wrong local), caught by the `critical_band` golden vectors. Recorded
+  since it's exactly the kind of transcription risk this project's "read
+  the Python source directly" discipline exists to catch.
+- **`_tnr_main_calc`'s `delta_ftot` indexing quirk.** `low_limit_idx`/
+  `high_limit_idx` are computed as positions in the *frequency-of-interest-
+  filtered* `fr` array (`argmin(abs(fr - f1))`), but then used directly to
+  index the *original, unfiltered* `frs`/`freq_axis` array
+  (`frs[high_limit_idx] - frs[low_limit_idx]`) without adjusting for the
+  filter's offset. Reproduced exactly in
+  `mosqito-core::tonality::tnr::evaluate_segment` (see its own comment) —
+  real MoSQITo behaviour, no standard to check it against.
+- **`_find_highest_tone`'s `nb_tones` counter — simplified, not a
+  behaviour change.** Python threads an explicit `nb_tones` integer
+  alongside the candidate array through the recursion; every place that
+  mutates one mutates the other identically, so it is always exactly
+  `len(candidates)`. This port drops the parallel counter and lets callers
+  read `.len()` instead.
 - ECMA-418-2 **specific** roughness (per-band, not aggregate `R`) is validated
   in MoSQITo only against commercial HEAD Artemis output at ±10%
   (`validation_specific_roughness_ecma.xlsx`), not against the standard

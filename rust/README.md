@@ -44,9 +44,12 @@ implementation) cross-checked against `sottek-hearing-model`.
 | `sound_level_meter` (`comp_spectrum`, `freq_band_synthesis`) | — | Golden vectors against MoSQITo |
 | Signal generators (`sine_wave`, `am_sine`, `am_noise`, `fm_sine`) | — | Golden vectors / statistical checks against MoSQITo (`am_noise_generator`'s RNG is seeded, not bit-parity with `numpy.random.default_rng` — see `DEVIATIONS.md`) |
 | `sone_to_phon`, `equal_loudness_contours` | ISO 226 | Golden vectors against MoSQITo |
+| `tnr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
+| `pr_ecma_st` / `_freq` / `_perseg` | ECMA-74 Annex D, ECMA TR/108 | Golden vectors against MoSQITo (private-function-level and full entry points; no digitized standard corpus exists) |
 
-Tonality (TNR/PR, ECMA-74/TR-108) is Phase 2's one remaining metric — not yet
-ported; see `DEVIATIONS.md`'s "Deferred to Phase 2" section.
+Phase 2 is now complete. `tnr_ecma_perseg`/`pr_ecma_perseg` only implement
+the 1-D-signal branch of their MoSQITo counterparts — the 2-D-signal branch
+has a real, unreproduced `NameError` in MoSQITo itself; see `DEVIATIONS.md`.
 
 ## Layout
 
