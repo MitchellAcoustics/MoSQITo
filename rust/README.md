@@ -90,8 +90,8 @@ cargo test --workspace --release   # unit + golden-vector + standards conformanc
 uv pip install --python ../.venv/bin/python mosqito sottek-hearing-model
 ../.venv/bin/pytest tests/ -v -m differential
 
-# Wall-time benchmarks. Criterion (mosqito-core only, covers roughness_ecma,
-# 10 s signals, rayon thread-count scaling):
+# Wall-time benchmarks. Criterion (mosqito-core only, covers every metric
+# from both phases, 10 s signals for several, rayon thread-count scaling):
 cargo bench -p mosqito-core   # HTML reports under target/criterion/
 
 # pytest-benchmark (mosqito vs. mosqito_rs on identical inputs):
