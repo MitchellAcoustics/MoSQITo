@@ -96,33 +96,46 @@ def load(
     fs : int
         Sampling frequency [Hz], always 48000 (resampled if needed).
     """
-    if not (file.endswith(".wav") or file.endswith(".WAV")):
+    if not file.endswith((".wav", ".WAV")):
         raise NotImplementedError(
             "mosqito_rs.load currently supports .wav files only; "
             ".mat/.uff support has not been ported, see DEVIATIONS.md"
         )
 
-    from scipy.io import wavfile
-    from scipy.signal import resample
+    # Imported here, not at module level: SciPy is not a default dependency
+    # (every metric is numpy-only), so `import mosqito_rs` must not need it.
+    try:
+        from scipy.io import wavfile
+        from scipy.signal import resample
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "mosqito_rs.load needs SciPy, which mosqito-rs does not install by "
+            "default (every metric is numpy-only). Install it with "
+            "`pip install mosqito-rs[io]`."
+        ) from exc
 
     fs, signal = wavfile.read(file)
     if signal.ndim > 1:
         signal = signal[:, 0]
 
-    calib = 1.0 if wav_calib is None else wav_calib
+    # Full-scale divisor per sample dtype, matching MoSQITo's own ladder —
+    # note 2**15 - 1, not 2**15. Deliberately not `np.iinfo(...).max`, which
+    # would silently start accepting int8/uint8 that MoSQITo does not handle.
     if np.issubdtype(signal.dtype, np.int16):
-        signal = calib * signal / (2**15 - 1)
+        full_scale = 2**15 - 1
     elif np.issubdtype(signal.dtype, np.int32):
-        signal = calib * signal / (2**31 - 1)
+        full_scale = 2**31 - 1
     elif np.issubdtype(signal.dtype, np.floating):
-        signal = calib * signal
+        full_scale = 1.0
     else:
         raise NotImplementedError(
             f"mosqito_rs.load does not support wav sample dtype {signal.dtype}"
         )
+    calib = 1.0 if wav_calib is None else wav_calib
+    signal = calib * signal / full_scale
 
     if fs != 48000:
         signal = resample(signal, int(48000 * len(signal) / fs))
         fs = 48000
 
-    return signal.astype(np.float64), fs
+    return signal.astype(np.float64, copy=False), fs

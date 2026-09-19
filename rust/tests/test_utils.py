@@ -53,6 +53,21 @@ def test_load_matches_mosqito(repo_root):
     np.testing.assert_allclose(sig_rs, sig_py, rtol=1e-9)
 
 
+@pytest.mark.differential
+def test_load_matches_mosqito_when_resampling(repo_root):
+    # The 48 kHz case above never reaches load()'s `fs != 48000` branch. This
+    # one does: the file is 44.1 kHz, so both implementations resample to
+    # 48 kHz on the way out.
+    mosqito = pytest.importorskip("mosqito")
+    path = repo_root / "tests/input/Test signal 3 (1 kHz 60 dB)_44100Hz.wav"
+
+    sig_rs, fs_rs = mosqito_rs.load(str(path), wav_calib=2 * 2**0.5)
+    sig_py, fs_py = mosqito.utils.load(str(path), wav_calib=2 * 2**0.5)
+    assert fs_rs == 48000
+    assert fs_rs == fs_py
+    np.testing.assert_allclose(sig_rs, sig_py, rtol=1e-9)
+
+
 def test_load_rejects_non_wav():
     with pytest.raises(NotImplementedError):
         mosqito_rs.load("signal.mat", mat_signal="sig", mat_fs="fs")

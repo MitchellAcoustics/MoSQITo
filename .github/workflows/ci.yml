@@ -43,6 +43,15 @@ jobs:
       - name: cargo test --workspace --release
         run: cargo test --workspace --release
 
+      # Gates publishability on the PR that would break it, rather than at
+      # release time when the tag already exists. Catches a path dependency
+      # without a version, a missing manifest field, an `exclude` that drops
+      # a needed file. Never uploads. `wheels.yml` runs the same check again
+      # as a release-time backstop, since a tag push does not run this
+      # workflow.
+      - name: cargo publish --dry-run (mosqito-core)
+        run: cargo publish --dry-run -p mosqito-core
+
   python:
     name: Python (maturin develop + pytest)
     runs-on: ubuntu-latest
