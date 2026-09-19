@@ -16,9 +16,16 @@ Casagrande Hirono (INTER-NOISE 2024) — is recorded in ``DEVIATIONS.md``.
 from __future__ import annotations
 
 from . import _core
+from .generators import (
+    am_noise_generator,
+    am_sine_generator,
+    fm_sine_generator,
+    sine_wave_generator,
+)
 from .loudness_ecma import loudness_ecma
 from .loudness_zwst import loudness_zwst, loudness_zwst_freq, loudness_zwst_perseg
 from .loudness_zwtv import loudness_zwtv
+from .roughness_dw import roughness_dw, roughness_dw_freq
 from .roughness_ecma import roughness_ecma
 from .sharpness_din import (
     sharpness_din_freq,
@@ -40,6 +47,8 @@ __all__ = [
     "loudness_zwst_perseg",
     "loudness_zwtv",
     "loudness_ecma",
+    "roughness_dw",
+    "roughness_dw_freq",
     "roughness_ecma",
     "sharpness_din_from_loudness",
     "sharpness_din_st",
@@ -49,6 +58,10 @@ __all__ = [
     "sii_ansi",
     "sii_ansi_freq",
     "sii_ansi_level",
+    "sine_wave_generator",
+    "am_sine_generator",
+    "am_noise_generator",
+    "fm_sine_generator",
 ]
 
 __version__ = "0.1.0"
