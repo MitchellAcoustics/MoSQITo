@@ -109,3 +109,43 @@ def test_roughness_ecma_python(benchmark, tone_1s, mosqito):
     benchmark.pedantic(
         mosqito.sq_metrics.roughness_ecma, args=(tone_1s, FS), rounds=2, iterations=1
     )
+
+
+@pytest.mark.benchmark
+def test_sii_ansi_rust(benchmark, pink_1s):
+    benchmark(mosqito_rs.sii_ansi, pink_1s, FS, "critical", "normal")
+
+
+@pytest.mark.benchmark
+def test_sii_ansi_python(benchmark, pink_1s, mosqito):
+    benchmark(mosqito.sq_metrics.sii_ansi, pink_1s, FS, "critical", "normal")
+
+
+@pytest.mark.benchmark
+def test_roughness_dw_rust(benchmark, tone_1s):
+    benchmark(mosqito_rs.roughness_dw, tone_1s, FS)
+
+
+@pytest.mark.benchmark
+def test_roughness_dw_python(benchmark, tone_1s, mosqito):
+    benchmark(mosqito.sq_metrics.roughness_dw, tone_1s, FS)
+
+
+@pytest.mark.benchmark
+def test_tnr_ecma_st_rust(benchmark, tone_1s):
+    benchmark(mosqito_rs.tnr_ecma_st, tone_1s, FS)
+
+
+@pytest.mark.benchmark
+def test_tnr_ecma_st_python(benchmark, tone_1s, mosqito):
+    benchmark(mosqito.sq_metrics.tnr_ecma_st, tone_1s, FS)
+
+
+@pytest.mark.benchmark
+def test_pr_ecma_st_rust(benchmark, tone_1s):
+    benchmark(mosqito_rs.pr_ecma_st, tone_1s, FS)
+
+
+@pytest.mark.benchmark
+def test_pr_ecma_st_python(benchmark, tone_1s, mosqito):
+    benchmark(mosqito.sq_metrics.pr_ecma_st, tone_1s, FS)
