@@ -1,9 +1,11 @@
 //! Daniel & Weber roughness, core per-spectrum computation, matching
 //! `_roughness_dw_main_calc.py`.
 
+use std::sync::Arc;
+
 use num_complex::Complex64;
 use rayon::prelude::*;
-use rustfft::FftPlanner;
+use rustfft::{Fft, FftPlanner};
 
 use super::ear_filter_coeff::ear_filter_coeff;
 use crate::utils::{amp2db, db2amp, freq2bark, ltq, LtqReference};
@@ -16,6 +18,67 @@ pub type RoughnessDwResult = (f64, [f64; N_CHANNEL], [f64; N_CHANNEL]);
 /// The 47 channel centres, in Bark, `0.5, 1.0, ..., 23.5`.
 pub(crate) fn channel_centres() -> [f64; N_CHANNEL] {
     std::array::from_fn(|i| (i + 1) as f64 / 2.0)
+}
+
+/// Everything [`roughness_dw_main_calc`] derives from `freq_axis`/`fs` alone
+/// — the ear-filter/threshold-in-quiet tables and the FFT plans — none of
+/// which depends on a segment's own spectrum content. A single signal's
+/// segments all share one `freq_axis`/`fs`/block length, so [`roughness_dw`]
+/// (in `roughness_dw.rs`) builds this once and reuses it across every
+/// segment via [`roughness_dw_main_calc_with_setup`], rather than paying for
+/// `ear_filter_coeff`/`ltq`/FFT-planner construction again per segment —
+/// real cost for a long signal's many 200 ms blocks. `roughness_dw_main_calc`
+/// itself still builds one fresh, for the single-spectrum callers
+/// (`roughness_dw_freq`) where there is only one call to make.
+///
+/// [`roughness_dw`]: super::roughness_dw::roughness_dw
+pub struct RoughnessDwSetup {
+    bark_axis: Vec<f64>,
+    a0: Vec<f64>,
+    threshold: Vec<f64>,
+    min_excit_db: Vec<f64>,
+    zi: [f64; N_CHANNEL],
+    fwd: Arc<dyn Fft<f64>>,
+    inv: Arc<dyn Fft<f64>>,
+}
+
+impl RoughnessDwSetup {
+    /// `freq_axis` is the `n_orig`-length one-sided frequency axis every
+    /// segment shares (from `comp_spectrum_complex`); `fs` the sampling rate.
+    pub fn new(freq_axis: &[f64], fs: f64) -> Self {
+        let n_orig = freq_axis.len();
+        let n = 2 * n_orig;
+
+        let bark_axis = freq2bark(freq_axis);
+        let a0: Vec<f64> = ear_filter_coeff(&bark_axis)
+            .iter()
+            .map(|&c| db2amp(c, 1.0))
+            .collect();
+        let threshold = ltq(&bark_axis, LtqReference::Roughness);
+
+        let zi: [f64; N_CHANNEL] = channel_centres();
+        // See `roughness_dw_main_calc_with_setup`'s body for what this is.
+        let zb: Vec<f64> = crate::utils::bark2freq(&zi)
+            .iter()
+            .map(|&f| f * n as f64 / fs)
+            .collect();
+        let n_z: Vec<f64> = (1..=n_orig).map(|i| i as f64).collect();
+        let min_excit_db = crate::dsp::interp(&zb, &n_z, &threshold);
+
+        let mut planner = FftPlanner::<f64>::new();
+        let fwd = planner.plan_fft_forward(n);
+        let inv = planner.plan_fft_inverse(n);
+
+        Self {
+            bark_axis,
+            a0,
+            threshold,
+            min_excit_db,
+            zi,
+            fwd,
+            inv,
+        }
+    }
 }
 
 /// Computes Daniel & Weber roughness from one amplitude-or-complex spectrum.
@@ -52,21 +115,37 @@ pub fn roughness_dw_main_calc(
     gzi: &[f64],
     h_weight: &[Vec<f64>],
 ) -> RoughnessDwResult {
+    let setup = RoughnessDwSetup::new(freq_axis, fs);
+    roughness_dw_main_calc_with_setup(&setup, spec, freq_axis, gzi, h_weight)
+}
+
+/// Same as [`roughness_dw_main_calc`], but takes a [`RoughnessDwSetup`]
+/// built once by the caller and reused across every segment of one signal,
+/// instead of rebuilding it (ear-filter/threshold tables, FFT plans) on
+/// every call. See [`RoughnessDwSetup`]'s own docs for why that matters.
+pub fn roughness_dw_main_calc_with_setup(
+    setup: &RoughnessDwSetup,
+    spec: &[Complex64],
+    freq_axis: &[f64],
+    gzi: &[f64],
+    h_weight: &[Vec<f64>],
+) -> RoughnessDwResult {
     assert_eq!(spec.len(), freq_axis.len());
     let n_orig = spec.len();
     let n = 2 * n_orig;
 
-    let bark_axis = freq2bark(freq_axis);
-    let a0: Vec<f64> = ear_filter_coeff(&bark_axis)
-        .iter()
-        .map(|&c| db2amp(c, 1.0))
-        .collect();
+    let bark_axis = &setup.bark_axis;
+    let a0 = &setup.a0;
+    let threshold = &setup.threshold;
+    let min_excit_db = &setup.min_excit_db;
+    let zi = setup.zi;
+    let fwd = &setup.fwd;
+    let inv = &setup.inv;
 
-    let scaled: Vec<Complex64> = spec.iter().zip(&a0).map(|(&s, &a)| s * a).collect();
+    let scaled: Vec<Complex64> = spec.iter().zip(a0).map(|(&s, &a)| s * a).collect();
     let module: Vec<f64> = scaled.iter().map(|c: &Complex64| c.norm()).collect();
     let spec_db = amp2db(&module, 2e-5);
 
-    let threshold = ltq(&bark_axis, LtqReference::Roughness);
     let audible_index: Vec<usize> = (0..n_orig).filter(|&i| spec_db[i] > threshold[i]).collect();
     let n_aud = audible_index.len();
 
@@ -77,17 +156,10 @@ pub fn roughness_dw_main_calc(
         .map(|&ind| (-24.0 - 230.0 / freq_axis[ind] + 0.2 * spec_db[ind]).min(0.0))
         .collect();
 
-    let zi: [f64; N_CHANNEL] = channel_centres();
-    // Channel centres, expressed on the same 1-indexed sample-position scale
-    // `threshold` (length n_orig) is defined over, matching
-    // `bark2freq(zi) * n / fs` then `interp(zb, nZ, threshold)` with
-    // `nZ = 1..=n_orig`.
-    let zb: Vec<f64> = crate::utils::bark2freq(&zi)
-        .iter()
-        .map(|&f| f * n as f64 / fs)
-        .collect();
-    let n_z: Vec<f64> = (1..=n_orig).map(|i| i as f64).collect();
-    let min_excit_db = crate::dsp::interp(&zb, &n_z, &threshold);
+    // `min_excit_db`: channel centres expressed on the same 1-indexed
+    // sample-position scale `threshold` (length n_orig) is defined over,
+    // matching `bark2freq(zi) * n / fs` then `interp(zb, nZ, threshold)`
+    // with `nZ = 1..=n_orig` — computed once in `RoughnessDwSetup::new`.
 
     let ch_low: Vec<i64> = audible_index
         .iter()
@@ -121,10 +193,6 @@ pub fn roughness_dw_main_calc(
     }
 
     // ------------------------------- stage 2 ---------------------------
-    let mut planner = FftPlanner::<f64>::new();
-    let fwd = planner.plan_fft_forward(n);
-    let inv = planner.plan_fft_inverse(n);
-
     let results: Vec<(Vec<f64>, f64)> = (0..N_CHANNEL)
         .into_par_iter()
         .map(|i| {

@@ -7,7 +7,9 @@ use rayon::prelude::*;
 
 use super::gzi_weighting::gzi_weighting;
 use super::h_weighting::h_weighting;
-use super::main_calc::{channel_centres, roughness_dw_main_calc};
+use super::main_calc::{
+    channel_centres, roughness_dw_main_calc, roughness_dw_main_calc_with_setup, RoughnessDwSetup,
+};
 use crate::slm::{comp_spectrum_complex, SpectrumWindow};
 use crate::utils::time_segmentation;
 
@@ -37,12 +39,17 @@ pub fn roughness_dw(signal: &[f64], fs: f64, overlap: f64) -> RoughnessDwSegResu
     let h_weight = h_weighting(nperseg, fs);
     let zi = channel_centres();
     let gzi = gzi_weighting(&zi);
+    // Every segment shares this signal's freq_axis/fs/block length, so the
+    // ear-filter/threshold tables and FFT plans are identical across all
+    // `nseg` calls below — built once here instead of once per segment.
+    // See `RoughnessDwSetup`'s own docs.
+    let setup = RoughnessDwSetup::new(&freq_axis, fs);
 
     let results: Vec<(f64, [f64; N_CHANNEL], [f64; N_CHANNEL])> = (0..nseg)
         .into_par_iter()
         .map(|col| {
             let spec_col: Vec<Complex64> = spec.column(col).to_vec();
-            roughness_dw_main_calc(&spec_col, &freq_axis, fs, &gzi, &h_weight)
+            roughness_dw_main_calc_with_setup(&setup, &spec_col, &freq_axis, &gzi, &h_weight)
         })
         .collect();
 

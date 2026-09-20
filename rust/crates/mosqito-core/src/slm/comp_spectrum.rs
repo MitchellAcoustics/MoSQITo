@@ -15,6 +15,7 @@
 
 use ndarray::{Array2, ArrayView2};
 use num_complex::Complex64;
+use rayon::prelude::*;
 use rustfft::FftPlanner;
 
 /// Window applied before the FFT, matching `comp_spectrum`'s `window` string
@@ -59,14 +60,31 @@ pub fn comp_spectrum_complex(
     let mut planner = FftPlanner::<f64>::new();
     let fft = planner.plan_fft_forward(nfft);
 
+    // Each column's window+FFT is independent of every other, and the plan
+    // is already shared (rustfft's `Arc<dyn Fft<_>>`) — parallel across
+    // segments benefits the multi-segment callers (`roughness_dw`,
+    // `tnr_ecma_perseg`/`pr_ecma_perseg`, each `nseg` = tens to hundreds of
+    // blocks); for the single-spectrum callers (`nseg == 1`) it's one task,
+    // same cost as the sequential loop it replaces.
+    let columns: Vec<Vec<Complex64>> = (0..nseg)
+        .into_par_iter()
+        .map(|col| {
+            let mut buf: Vec<Complex64> = (0..nfft)
+                .map(|i| Complex64::new(signal[[i, col]] * win[i], 0.0))
+                .collect();
+            fft.process(&mut buf);
+            buf.truncate(half);
+            for v in &mut buf {
+                *v *= 1.42;
+            }
+            buf
+        })
+        .collect();
+
     let mut spectrum = Array2::<Complex64>::from_elem((half, nseg), Complex64::new(0.0, 0.0));
-    for col in 0..nseg {
-        let mut buf: Vec<Complex64> = (0..nfft)
-            .map(|i| Complex64::new(signal[[i, col]] * win[i], 0.0))
-            .collect();
-        fft.process(&mut buf);
-        for k in 0..half {
-            spectrum[[k, col]] = buf[k] * 1.42;
+    for (col, values) in columns.into_iter().enumerate() {
+        for (k, v) in values.into_iter().enumerate() {
+            spectrum[[k, col]] = v;
         }
     }
 
@@ -86,11 +104,17 @@ pub fn comp_spectrum_db(
     let half = complex.nrows();
     let nseg = complex.ncols();
 
+    let columns: Vec<Vec<f64>> = (0..nseg)
+        .into_par_iter()
+        .map(|col| {
+            let amps: Vec<f64> = (0..half).map(|k| complex[[k, col]].norm()).collect();
+            crate::utils::amp2db(&amps, 2e-5)
+        })
+        .collect();
+
     let mut spectrum = Array2::<f64>::zeros((half, nseg));
-    for col in 0..nseg {
-        let amps: Vec<f64> = (0..half).map(|k| complex[[k, col]].norm()).collect();
-        let db = crate::utils::amp2db(&amps, 2e-5);
-        for (k, v) in db.into_iter().enumerate() {
+    for (col, values) in columns.into_iter().enumerate() {
+        for (k, v) in values.into_iter().enumerate() {
             spectrum[[k, col]] = v;
         }
     }
