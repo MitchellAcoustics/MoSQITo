@@ -1,0 +1,16 @@
+[package]
+name = "mosqito_spike"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "mosqito_spike"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+numpy = "0.29"
+ndarray = "0.17"
+
+[profile.release]
+opt-level = 3
