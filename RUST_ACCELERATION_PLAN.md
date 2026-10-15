@@ -5,6 +5,25 @@ Python package, where profiling shows it pays, instead of porting the package.
 Everything here is measured on the current `master` (Python 3.11, numpy 2.x,
 scipy 1.17, 4 vCPU container), with the scripts in `benchmarks/`.
 
+> **Corrections after the Python-only study (`PYTHON_OPTIMIZATION_PLAN.md`).**
+> Three statements below were wrong or too optimistic once measured more
+> carefully:
+>
+> * The filter-design `lru_cache` gives **1.1–1.7×**, not "~4×" (section 4,
+>   "Not Rust candidates", and the phase 0 row of section 6).
+> * `roughness_dw` is *not* FFT-bound on broadband signals. The profile in
+>   section 2 used a pure tone with a handful of audible lines. On white
+>   noise it takes about 4.9 s per second of audio, and a batched numpy
+>   rewrite with threads is 28–33× faster with identical output. It needs no
+>   Rust.
+> * Most of phase 3 (the `loudness_ecma` front end) is reachable in Python:
+>   restructuring per band and adding threads gives 3.7–11.6× and cuts memory
+>   about 45×. The Rust gain over that baseline is unmeasured.
+>
+> The remaining case for Rust is the two sequential Zwicker kernels and the
+> `roughness_ecma` peak-picking loop, where Python caps at 3–10× and a
+> compiled loop gives 30–150×. Numba is a second option for those.
+
 ## 1. Summary
 
 * Two shared helpers explain most of the pure-Python slowness:
@@ -189,12 +208,14 @@ through the helper.
 ### Not Rust candidates (and what to do instead)
 
 * `loudness_zwst` / `sharpness_din_st` / `noct_spectrum` at ~50 ms: 40 ms is
-  SciPy *designing* 38 Butterworth band-pass filters per call. An
+  SciPy *designing* 38 Butterworth band-pass filters per call. A
   `functools.lru_cache` on `_n_oct_time_filter`'s design keyed by
-  `(fs, fc, alpha, N)` is a two-line Python change worth ~4×. Do this first.
-* `roughness_dw`: 67 % is numpy's FFT (1 270 calls of 9 600 points per second
-  of audio). Batching the 47 channels into one `(47, n)` `ifft`/`fft` call in
-  numpy is the fix; Rust would only replace one C FFT with another.
+  `(fs, fc, alpha, N)` is a two-line Python change worth 1.1–1.7× (measured;
+  an earlier ~4× estimate was wrong).
+* `roughness_dw`: on a tone 67 % is numpy's FFT, but on broadband input the
+  per-line Python loops dominate (4.9 s per second of noise). Batching the 47
+  channels and threading across segments gives 2–3.7× on tones and 28–33× on
+  noise with identical output; see `PYTHON_OPTIMIZATION_PLAN.md`.
 * Tonality (`tnr_*`, `pr_*`), `sii_ansi`, `noct_synthesis`, generators: tens of
   milliseconds; not worth a compiled dependency.
 * `time_segmentation` (utils): a Python `while` loop, but it appends views;
@@ -268,7 +289,7 @@ and by anyone who wants to reproduce old numbers).
 
 | Phase | Deliverable | Rust lines (approx.) | Headline gain |
 | --- | --- | ---: | --- |
-| 0 | Build plumbing (`setuptools-rust`, `_accel.py`, CI matrix, differential-test harness), `lru_cache` for the Butterworth designs | ~20 | `loudness_zwst` family ~4× for free |
+| 0 | Build plumbing (`setuptools-rust`, `_accel.py`, CI matrix, differential-test harness), `lru_cache` for the Butterworth designs | ~20 | `loudness_zwst` family 1.1–1.7× |
 | 1 | `nl_loudness` (spike promoted, `+= δ` accumulation for bit-parity) | 60 | `loudness_zwtv`, `sharpness_din_tv` 10–12× |
 | 2 | `calc_slopes` (+ `main_loudness`) | 300 | `loudness_zwtv` ~20× overall; every Zwicker/DIN metric a few ms faster |
 | 3 | `gammatone_bank`, `block_rms_rectified` | 150 | `loudness_ecma` 7–15×, memory ÷30 |
