@@ -2,7 +2,9 @@
 
 # Standard library imports
 from numpy import sqrt, mean
-from scipy.signal import decimate, butter, sosfilt
+from scipy.signal import decimate, sosfilt
+
+from mosqito.sound_level_meter.noct_spectrum._bandpass_design import _design_sos
 
 
 def _n_oct_time_filter(sig, fs, fc, alpha, N=3):
@@ -59,7 +61,7 @@ def _n_oct_time_filter(sig, fs, fc, alpha, N=3):
     w2 = fc / (fs / 2) * alpha
 
     # define filter coefficient
-    sos = butter(int(N), (w1, w2), "bandpass", analog=False, output='sos')
+    sos = _design_sos(int(N), w1, w2)
 
     # filter signal
     sig_filt = sosfilt(sos, sig, axis=0)

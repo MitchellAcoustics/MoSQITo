@@ -9,9 +9,10 @@ from mosqito.sound_level_meter.noct_spectrum._n_oct_time_filter import (
     _n_oct_time_filter,
 )
 from mosqito.sound_level_meter.noct_spectrum._center_freq import _center_freq
+from mosqito.utils._parallel import parallel_map, resolve_workers
 
 
-def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000):
+def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000, workers=None):
     """Compute nth-octave band spectrum
 
     This function computes the rms level of a signal for each third octave band
@@ -36,6 +37,11 @@ def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000):
         Reference frequency. Shall be set to 1 kHz for audible frequency
         range, to 1 Hz for infrasonic range (f < 20 Hz) and to 1 MHz for
         ultrasonic range (f > 31.5 kHz)
+    workers : int, optional
+        Number of threads used to filter the bands in parallel (one task per
+        band, about 28 for third octaves between 24 Hz and 12.5 kHz). Default is
+        the ``MOSQITO_WORKERS`` environment variable if set, else 1 (no
+        threads). More than the number of cores brings nothing.
 
     Returns
     -------
@@ -74,6 +80,8 @@ def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000):
         >>> plt.ylabel("Amplitude [dB]")
     """
 
+    workers = resolve_workers(workers)
+
     # 1-dimensional array to 2-dimensional array with size (nperseg, 1)
     if sig.ndim == 1:
         sig = sig[:, newaxis]
@@ -85,8 +93,10 @@ def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000):
     alpha_vec, _, _ = _filter_bandwidth(fc_vec, n=n)
 
     # Calculation of the rms level of the signal in each band
-    spec = []
-    for fc, alpha in zip(fc_vec, alpha_vec):
-        spec.append(_n_oct_time_filter(sig, fs, fc, alpha))
+    spec = parallel_map(
+        lambda band: _n_oct_time_filter(sig, fs, band[0], band[1]),
+        zip(fc_vec, alpha_vec),
+        workers,
+    )
 
     return squeeze(array(spec)), fpref
