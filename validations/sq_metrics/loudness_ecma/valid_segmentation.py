@@ -27,7 +27,7 @@ signal, _ = sine_wave_generator(
 sb = 8192
 sh = 2048
 
-block_signals = _band_pass_signals(signal)
+block_signals = _band_pass_signals(signal, sb, sh)
 blocks, _ = _ecma_time_segmentation(block_signals, sb, sh, 12288)
 
 

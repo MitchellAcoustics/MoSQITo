@@ -8,6 +8,7 @@ except ImportError:
     )
 
 # Third party imports
+import os
 from numpy import array, empty, amin, amax, zeros, log10, maximum, float64
 
 # Local application imports
@@ -15,6 +16,10 @@ from mosqito.sq_metrics.speech_intelligibility.sii_ansi._band_procedure_data imp
     _get_third_octave_band_data,
 )
 from mosqito.sq_metrics.speech_intelligibility.sii_ansi._main_sii import _main_sii
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 # Reference values from ANSI S3.5 standard
 reference = empty(2, dtype=dict)
@@ -66,6 +71,16 @@ def validation_sii_octave(reference):
     The input files are provided by ANSI S3.5-1997.
     The compliance is assessed according with a 1% tolerance.
     One .png compliance plot is generated.
+
+    Parameters
+    ----------
+    reference : dict
+        ANSI S3.5-1997 octave band example (inputs and reference SII_spec)
+
+    Outputs
+    -------
+    tst : bool
+        Compliance of the specific SII in every band
 
     """
     # Compute SII
@@ -133,10 +148,12 @@ def validation_sii_octave(reference):
     plt.xlabel("Center frequency [Hz]")
     plt.ylabel("Specific SII")
     plt.savefig(
-        "validations/sq_metrics/speech_intelligibility/output/" + "validation_sii.png",
+        OUT_DIR + "validation_sii.png",
         format="png",
     )
     plt.clf()
+
+    return tstS
 
 
 def validation_sii_third_octave(reference):
@@ -240,7 +257,7 @@ def validation_sii_third_octave(reference):
     plt.xlabel("Center frequency [Hz]")
     plt.ylabel("Amplitude [dB]")
     plt.savefig(
-        "validations/sq_metrics/speech_intelligibility/output/"
+        OUT_DIR
         + "validation_equivalent_noise_spectrum.png",
         format="png",
     )

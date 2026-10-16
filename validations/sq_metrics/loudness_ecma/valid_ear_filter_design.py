@@ -6,6 +6,7 @@ except ImportError:
         "In order to perform this validation you need the 'matplotlib' package."
     )
 
+import os
 from scipy.signal import sos2tf, sosfreqz, sosfilt
 from numpy import (
     log10,
@@ -28,6 +29,10 @@ from validations.sq_metrics.loudness_ecma.input.ear_filter_ecma import (
     freq as freq_ecma,
     level as level_ecma,
 )
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 # generate outer and middle/inner ear filter coeeficient
 sos_ear = _ear_filter_design()
@@ -70,7 +75,7 @@ plt.ylabel("Level [dB]")
 plt.semilogx(freq, level, "o", label="Filtered sine signal")
 plt.legend()
 plt.savefig(
-    "./validations/sq_metrics/loudness_ecma/output/"
+    OUT_DIR
     + "validation_ear_filter_design.png",
     format="png",
 )

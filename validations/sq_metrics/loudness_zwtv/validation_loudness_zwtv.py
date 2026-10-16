@@ -8,6 +8,7 @@ except ImportError:
     )
 
 # Third party imports
+import os
 import numpy as np
 from pandas import ExcelFile, read_excel
 import warnings
@@ -17,6 +18,10 @@ import time
 from mosqito.sq_metrics import loudness_zwtv
 from mosqito.utils import load
 from mosqito import COLORS as clr
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 # Test signals as input for time-varying loudness
 # (from ISO 532-1 annex B4)
@@ -177,18 +182,22 @@ def validation_loudness_zwtv(signal):
     signal: dict
         {
             "data_file": <Path to reference input signal>,
-            "N_file": <Path to reference calculated loudness versus time>
-            "N_specif_file": <Path to reference calculated specific loudness>
-            "N_specif_bark": <Bark value of the reference calculation>
+            "xls": <Path to the reference .xlsx file>,
+            "tab": <Sheet name>,
+            "field": <Column of the reference loudness>,
+            ...
         }
 
     Outputs
     -------
-    None
+    tst : int
+        1 if compliant with ISO 532-1 section 6.1, 0 otherwise (including
+        when the series lengths differ by more than one sample, in which
+        case no plot is drawn)
     """
 
     # Load signal and compute third octave band spectrum
-    sig, fs = load(signal["data_file"], wav_calib=2 * 2**0.5)
+    sig, fs = load(os.path.join(HERE, signal["data_file"]), wav_calib=2 * 2**0.5)
 
     # Compute Loudness
 
@@ -209,7 +218,8 @@ def validation_loudness_zwtv(signal):
     }
 
     # Check ISO 532-1 compliance
-    _check_compliance(loudness, signal, "output/")
+    signal = {**signal, "xls": os.path.join(HERE, signal["xls"])}
+    return _check_compliance(loudness, signal, OUT_DIR)
 
 
 def _check_compliance(loudness, signal, out_dir):

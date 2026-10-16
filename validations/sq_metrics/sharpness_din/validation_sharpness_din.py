@@ -8,11 +8,16 @@ except ImportError:
     )
 
 # Third party imports
+import os
 import numpy as np
 
 # Local application imports
-from mosqito.sq_metrics import sharpness_din
+from mosqito.sq_metrics import sharpness_din_st
 from mosqito.utils import load
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 # Signals and results from DIN 45692_2009E, chapter 6
 broadband = np.zeros((20), dtype=dict)
@@ -104,7 +109,7 @@ broadband[19] = {
 narrowband = np.zeros((21), dtype=dict)
 
 narrowband[0] = {
-    "data_file": "input/narrowband_250.wav",
+    "data_file": "input/narrowband_250.WAV",
     "type": "Narrow-band",
     "S": 0.38,
 }
@@ -191,20 +196,22 @@ narrowband[20] = {
 
 
 def validation_sharpness_din(noise):
-    """Test function for the script sharpness_din
+    """Test function for the script sharpness_din_st
 
-    Test function for the script sharpness_din with .wav filesas input.
+    Test function for the script sharpness_din_st with .wav files as input.
     The input files are provided by DIN 45692_2009E
     The compliance is assessed according to chapter 6 of the standard.
     One .png compliance plot is generated.
 
     Parameters
     ----------
-    None
+    noise : list of dict
+        Reference signals (data_file and expected sharpness values)
 
     Outputs
     -------
-    None
+    tst : numpy.array of bool
+        Compliance of each signal to DIN 45692 chapter 6
     """
 
     sharpness = np.zeros((len(noise)))
@@ -212,10 +219,10 @@ def validation_sharpness_din(noise):
 
     for i in range(len(noise)):
         # Load signal
-        sig, fs = load(noise[i]["data_file"], wav_calib=1)
+        sig, fs = load(os.path.join(HERE, noise[i]["data_file"]), wav_calib=1)
 
         # Compute sharpness
-        S = sharpness_din(sig, fs, weighting="din")
+        S = sharpness_din_st(sig, fs, weighting="din")
         sharpness[i] = S
 
         # Load reference value
@@ -223,7 +230,7 @@ def validation_sharpness_din(noise):
 
     noise_type = noise[0]["type"]
 
-    _check_compliance(sharpness, reference, noise_type)
+    return _check_compliance(sharpness, reference, noise_type)
 
 
 def _check_compliance(sharpness, reference, noise_type):
@@ -244,8 +251,8 @@ def _check_compliance(sharpness, reference, noise_type):
 
     Outputs
     -------
-    tst : bool
-        Compliance to the reference data
+    tst : numpy.array of bool
+        Compliance of each value to the reference data
     """
     plt.figure()
 
@@ -254,9 +261,10 @@ def _check_compliance(sharpness, reference, noise_type):
 
     # Test for DIN 45692_2009E comformance (chapter 6)
     S = sharpness
-    tstS = (S >= np.amin([reference * 0.95, reference - 0.05], axis=0)).all() and (
+    tst = (S >= np.amin([reference * 0.95, reference - 0.05], axis=0)) & (
         S <= np.amax([reference * 1.05, reference + 0.05], axis=0)
-    ).all()
+    )
+    tstS = tst.all()
 
     # Tolerance curves definition
     tol_low = np.amin([reference * 0.95, reference - 0.05], axis=0)
@@ -298,10 +306,12 @@ def _check_compliance(sharpness, reference, noise_type):
     plt.ylabel("Sharpness, [acum]")
 
     plt.savefig(
-        "output/" + "validation_sharpness_" + noise_type + "_noise" + ".png",
+        OUT_DIR + "validation_sharpness_" + noise_type + "_noise" + ".png",
         format="png",
     )
     plt.clf()
+
+    return tst
 
 
 # test de la fonction

@@ -1,4 +1,5 @@
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,6 +9,10 @@ from mosqito.utils.am_sine_generator import am_sine_generator
 from input.references import ref_zf, ref_ecma
 
 from mosqito import COLORS as clr
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 def validation_roughness_ecma(fc, fm_vector):
     """Validation function for the roughness calculation of an audio signal
@@ -19,11 +24,15 @@ def validation_roughness_ecma(fc, fm_vector):
 
     Parameters
     ----------
-    None
+    fc : int
+        Carrier frequency [Hz]
+    fm_vector : array_like
+        Modulation frequencies [Hz]
 
     Outputs
     -------
-    None
+    tst : bool
+        Compliance with the Zwicker and Fastl reference (+/- 0.1 asper)
     """
     # Stimulus parameters
     duration = 1.5
@@ -122,7 +131,7 @@ def _check_compliance(fc, fm_vector, R_ecma, R_ref_zf, R_ref_ecma):
     
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_ecma/output/"
+        OUT_DIR
         + "validation_roughness_ecma_fc"
         +  f'{fc}'
         + "Hz"
@@ -135,16 +144,21 @@ def _check_compliance(fc, fm_vector, R_ecma, R_ref_zf, R_ref_ecma):
 
 
 # test de la fonction
-if __name__ == "__main__":
-    # carrier frequency
-    fc_vector = np.array([125, 250, 500, 1000, 2000, 4000, 8000])
-    
-    # lower, upper modulation frequency in range for each fc
-    N_interp = 15
-    fm_all = np.array([[20,  20,  20,  20,  20,  20,  20],
-                    [100, 150, 200, 400, 350, 300, 250]])
+# carrier frequency
+fc_vector = np.array([125, 250, 500, 1000, 2000, 4000, 8000])
 
+# lower, upper modulation frequency in range for each fc
+N_interp = 15
+fm_all = np.array([[20,  20,  20,  20,  20,  20,  20],
+                [100, 150, 200, 400, 350, 300, 250]])
+
+
+def fm_vector_for(i):
+    """Modulation frequencies used for the i-th carrier of fc_vector"""
+    return np.logspace(np.log10(fm_all[0, i]),
+                    np.log10(fm_all[1, i]), N_interp, base=10)
+
+
+if __name__ == "__main__":
     for i, fc in enumerate(fc_vector):
-        fm_vector = np.logspace(np.log10(fm_all[0, i]),
-                        np.log10(fm_all[1, i]), N_interp, base=10)
-        validation_roughness_ecma(fc, fm_vector)
+        validation_roughness_ecma(fc, fm_vector_for(i))

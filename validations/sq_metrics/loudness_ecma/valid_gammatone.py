@@ -7,6 +7,7 @@ except ImportError:
     )
 
 
+import os
 from scipy.signal import gammatone as scipy_gamma, freqz
 import numpy as np
 
@@ -16,6 +17,10 @@ from mosqito.sq_metrics.loudness.loudness_ecma._gammatone import (
 from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import (
     _auditory_filters_centre_freq,
 )
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 # Sampling frequency
 fs = 48000
@@ -51,7 +56,7 @@ plt.title(
     "Auditory filter for critical band 18 (centre freq = " + str(int(freq)) + " Hz)"
 )
 plt.savefig(
-    "./validations/sq_metrics/loudness_ecma/output/" + "validation_auditory_filter.png",
+    OUT_DIR + "validation_auditory_filter.png",
     format="png",
 )
 plt.close()
@@ -72,6 +77,6 @@ plt.ylabel("Amplitude [dB]")
 plt.grid(which="both", axis="both")
 plt.legend()
 plt.savefig(
-    "./validations/sq_metrics/loudness_ecma/output/" + "comparison_auditory_filter.png",
+    OUT_DIR + "comparison_auditory_filter.png",
     format="png",
 )

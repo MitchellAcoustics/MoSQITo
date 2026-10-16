@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Standard library imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +11,10 @@ from mosqito.utils.am_sine_generator import am_sine_generator
 from input.references import ref_zf, ref_dw
 
 from mosqito import COLORS as clr
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 
 # # Test signal parameters as input for roughness calculation
@@ -150,11 +155,13 @@ def validation_roughness_dw(fc):
 
     Parameters
     ----------
-    None
+    fc : int
+        Carrier frequency [Hz]
 
     Outputs
     -------
-    None
+    tst : bool
+        Compliance with the Zwicker and Fastl reference (+/- 0.1 asper)
     """
     # Stimulus parameters
     duration = 1.5
@@ -262,7 +269,7 @@ def _check_compliance(fc, fm_vector, R_dw, R_ref_zf, R_ref_dw):
     
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_dw/output/"
+        OUT_DIR
         + "validation_roughness_dw_fc"
         +  f'{fc}'
         + "Hz"

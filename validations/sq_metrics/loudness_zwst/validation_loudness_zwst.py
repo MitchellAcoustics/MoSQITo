@@ -8,17 +8,22 @@ except ImportError:
     )
 
 # Third party imports
+import os
 from os.path import basename, splitext
 import numpy as np
 
 # Local application imports
 from mosqito.sq_metrics import loudness_zwst
-from mosqito.utils import isoclose
+from mosqito.utils.isoclose import isoclose
 from mosqito.utils import load
 from mosqito.sq_metrics.loudness.loudness_zwst._main_loudness import _main_loudness
 from mosqito.sq_metrics.loudness.loudness_zwst._calc_slopes import _calc_slopes
 from input.ISO_532_1.test_signal_1 import test_signal_1
 from mosqito import COLORS as clr
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
 
 def validation_loudness_zwst_3oct():
     """Test function for the script loudness_zwicker_stationary
@@ -35,13 +40,14 @@ def validation_loudness_zwst_3oct():
 
     Outputs
     -------
-    None
+    results : dict of {str: tuple of bool}
+        {signal file stem} -> (N within tolerance, N_specific within tolerance)
     """
     # Third octave levels as input for stationary loudness
     # (from ISO 532-1 annex B2) : test_signal_1
 
     # Load ISO reference outputs
-    file_path = "input/ISO_532_1/test_signal_1.csv"
+    file_path = os.path.join(HERE, "input/ISO_532_1/test_signal_1.csv")
     N_iso = 83.296
     N_specif_iso = np.genfromtxt(file_path, skip_header=1)
 
@@ -74,6 +80,8 @@ def validation_loudness_zwst_3oct():
         splitext(basename(file_path))[0],
     )
 
+    return {splitext(basename(file_path))[0]: (is_isoclose_N, is_isoclose_N_specific)}
+
 
 def validation_loudness_zwst():
     """Test function for the script loudness_zwicker_stationary
@@ -89,7 +97,8 @@ def validation_loudness_zwst():
 
     Outputs
     -------
-    None
+    results : dict of {str: tuple of bool}
+        {signal file stem} -> (N within tolerance, N_specific within tolerance)
     """
 
     #
@@ -119,16 +128,19 @@ def validation_loudness_zwst():
         },
     ]
 
+    results = {}
     for signal in signals:
         # Load signal and compute third octave band spectrum
-        sig, fs = load(signal["data_file"], wav_calib=2 * 2**0.5)
+        sig, fs = load(os.path.join(HERE, signal["data_file"]), wav_calib=2 * 2**0.5)
 
         # Compute Loudness
         N, N_specific, bark_axis = loudness_zwst(sig, fs)
 
         # Load reference N'
         N_iso = signal["N"]
-        N_specif_iso = np.genfromtxt(signal["N_specif_file"], skip_header=1)
+        N_specif_iso = np.genfromtxt(
+            os.path.join(HERE, signal["N_specif_file"]), skip_header=1
+        )
 
         # Test
         is_isoclose_N = isoclose(
@@ -152,6 +164,12 @@ def validation_loudness_zwst():
             N_iso,
             splitext(basename(signal["data_file"]))[0],
         )
+        results[splitext(basename(signal["data_file"]))[0]] = (
+            is_isoclose_N,
+            is_isoclose_N_specific,
+        )
+
+    return results
 
 
 def _format_plot(is_isoclose_N, is_isoclose_N_specific, N, N_iso, filename):
@@ -183,9 +201,8 @@ def _format_plot(is_isoclose_N, is_isoclose_N_specific, N, N_iso, filename):
         transform=plt.gca().transAxes,
         bbox=props,
     )
-    out_dir = "output/"
     plt.savefig(
-        out_dir + "validation_loudness_zwst_" + "_".join(filename.split(" ")) + ".png",
+        OUT_DIR + "validation_loudness_zwst_" + "_".join(filename.split(" ")) + ".png",
         format="png",
     )
     plt.close()

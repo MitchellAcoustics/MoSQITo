@@ -1,5 +1,6 @@
 
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -11,6 +12,10 @@ from mosqito.utils.am_sine_generator import am_sine_generator
 from input.references_specific import ref_artemis
 from mosqito import COLORS as clr
 
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+
 def validation_specific_roughness_ecma(fc, fmod, ref_file):
     """Validation function for the roughness calculation of an audio signal
     according to ECMA 418-2 (2nd edition, 2022).
@@ -18,6 +23,21 @@ def validation_specific_roughness_ecma(fc, fmod, ref_file):
     Validation function for the function roughness_ecma. The input signals are generated
     according to the annex C of ECMA 418-2 (2nd edition, 2022). One .png compliance plot 
     is generated to compare the results with the references computed with the Artemis suite.
+
+    Parameters
+    ----------
+    fc : int
+        Carrier frequency [Hz]
+    fmod : int
+        Modulation frequency [Hz]
+    ref_file : str
+        Path to the Artemis reference .xlsx file
+
+    Outputs
+    -------
+    tst : bool
+        True if the specific roughness is within 10 % of the reference in
+        every band
     """
     
     # Stimulus parameters
@@ -63,8 +83,8 @@ def _check_compliance(fc, fmod, R_spec, ref):
     R_spec_ref = ref[:,1]
 
     # Test for comformance (0.1 absolute tolerance with zwicker and fastl and 10% relative tolerance with ecma
-    tst = ((R_spec < R_spec_ref*1.1).all()
-                and (R_spec > R_spec_ref*0.9).all())
+    tst = ((R_spec <= R_spec_ref*1.1).all()
+                and (R_spec >= R_spec_ref*0.9).all())
 
     # Comparison plot
     fig, ax = plt.subplots(figsize=[5.76, 4.8]) 
@@ -87,7 +107,7 @@ def _check_compliance(fc, fmod, R_spec, ref):
         
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_ecma/output/"
+        OUT_DIR
         + "validation_roughness_ecma_fc"
         +  f'{fc}'+ "Hz" 
         + f'{fmod}'+ "Hz" 
@@ -107,7 +127,7 @@ def _check_compliance(fc, fmod, R_spec, ref):
 # test de la fonction
 if __name__ == "__main__":
     
-    ref_file = r"validations\sq_metrics\roughness_ecma\input\validation_specific_roughness_ecma.xlsx"
+    ref_file = os.path.join(HERE, "input", "validation_specific_roughness_ecma.xlsx")
     fc = 1000
     fm_vector = np.array([40,70,120])
     for fmod in fm_vector:

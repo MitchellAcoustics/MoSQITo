@@ -6,6 +6,7 @@ Created on Tue Nov 24 16:43:45 2020
 """
 
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,6 +19,12 @@ from input.references import (
 )
 from mosqito.sq_metrics import roughness_dw, roughness_ecma
 from mosqito import COLORS as clr
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+# NB: this writes into the roughness_dw output folder, with the same file name as
+# comparison_roughness_danielweber.py, so each script overwrites the other's figure
+OUT_DIR_DW = os.path.join(HERE, "..", "roughness_dw", "output") + os.sep
 
 def comparison_roughness():
 
@@ -89,7 +96,7 @@ def comparison_roughness():
     axs3.set_title("Carrier frequency of 4000 Hz", fontsize=11)
 
     fig.savefig(
-        "./validations/sq_metrics/roughness_dw/output/"
+        OUT_DIR_DW
         + "roughness_implementations_comparison"
         + ".png",
         format="png",
