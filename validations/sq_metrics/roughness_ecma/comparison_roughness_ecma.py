@@ -19,6 +19,13 @@ from input.references import (
 from mosqito.sq_metrics import roughness_dw, roughness_ecma
 from mosqito import COLORS as clr
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+# NB: this script has always written into the roughness_dw output folder
+OUT_DIR_DW = os.path.join(HERE, "..", "roughness_dw", "output") + os.sep
+os.makedirs(OUT_DIR_DW, exist_ok=True)
+
 def comparison_roughness():
 
     # Parameters definition for signals generation
@@ -89,7 +96,7 @@ def comparison_roughness():
     axs3.set_title("Carrier frequency of 4000 Hz", fontsize=11)
 
     fig.savefig(
-        "./validations/sq_metrics/roughness_dw/output/"
+        OUT_DIR_DW
         + "roughness_implementations_comparison"
         + ".png",
         format="png",

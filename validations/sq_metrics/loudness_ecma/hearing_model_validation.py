@@ -16,6 +16,12 @@ from mosqito.utils.sine_wave_generator import (
     sine_wave_generator,
 )
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
+
 
 def comp_loudness_wrapper(spl, freq, phon_1kHz):
     """Return the difference between the loudness of a tone at <freq> Hz
@@ -124,7 +130,7 @@ def hearing_model_validation():
         labels=["ISO 226 Equal Loudness Contours", "MoSQITo [ECMA 418-2 (2022)]"],
     )
     plt.savefig(
-        "./validations/sq_metrics/loudness_ecma/output/"
+        OUT_DIR
         + "ecma_hearing_model_validation.png",
         format="png",
     )

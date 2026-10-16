@@ -11,6 +11,12 @@ from mosqito.utils.am_sine_generator import am_sine_generator
 from input.references_specific import ref_artemis
 from mosqito import COLORS as clr
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
+
 def validation_specific_roughness_ecma(fc, fmod, ref_file):
     """Validation function for the roughness calculation of an audio signal
     according to ECMA 418-2 (2nd edition, 2022).
@@ -87,7 +93,7 @@ def _check_compliance(fc, fmod, R_spec, ref):
         
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_ecma/output/"
+        OUT_DIR
         + "validation_roughness_ecma_fc"
         +  f'{fc}'+ "Hz" 
         + f'{fmod}'+ "Hz" 
@@ -107,7 +113,7 @@ def _check_compliance(fc, fmod, R_spec, ref):
 # test de la fonction
 if __name__ == "__main__":
     
-    ref_file = r"validations\sq_metrics\roughness_ecma\input\validation_specific_roughness_ecma.xlsx"
+    ref_file = os.path.join(HERE, "input", "validation_specific_roughness_ecma.xlsx")
     fc = 1000
     fm_vector = np.array([40,70,120])
     for fmod in fm_vector:

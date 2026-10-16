@@ -18,6 +18,12 @@ from mosqito.sq_metrics import loudness_zwtv
 from mosqito.utils import load
 from mosqito import COLORS as clr
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
+
 # Test signals as input for time-varying loudness
 # (from ISO 532-1 annex B4)
 signal = np.zeros((20), dtype=dict)
@@ -188,7 +194,7 @@ def validation_loudness_zwtv(signal):
     """
 
     # Load signal and compute third octave band spectrum
-    sig, fs = load(signal["data_file"], wav_calib=2 * 2**0.5)
+    sig, fs = load(os.path.join(HERE, signal["data_file"]), wav_calib=2 * 2**0.5)
 
     # Compute Loudness
 
@@ -209,7 +215,8 @@ def validation_loudness_zwtv(signal):
     }
 
     # Check ISO 532-1 compliance
-    _check_compliance(loudness, signal, "output/")
+    signal = {**signal, "xls": os.path.join(HERE, signal["xls"])}
+    _check_compliance(loudness, signal, OUT_DIR)
 
 
 def _check_compliance(loudness, signal, out_dir):
