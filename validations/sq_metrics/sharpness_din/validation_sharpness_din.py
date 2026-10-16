@@ -197,16 +197,17 @@ narrowband[20] = {
 
 
 def validation_sharpness_din(noise):
-    """Test function for the script sharpness_din
+    """Test function for the script sharpness_din_st
 
-    Test function for the script sharpness_din with .wav filesas input.
+    Test function for the script sharpness_din_st with .wav files as input.
     The input files are provided by DIN 45692_2009E
     The compliance is assessed according to chapter 6 of the standard.
     One .png compliance plot is generated.
 
     Parameters
     ----------
-    None
+    noise : list of dict
+        Reference signals (data_file and expected sharpness values)
 
     Outputs
     -------

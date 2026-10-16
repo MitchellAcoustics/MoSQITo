@@ -183,15 +183,18 @@ def validation_loudness_zwtv(signal):
     signal: dict
         {
             "data_file": <Path to reference input signal>,
-            "N_file": <Path to reference calculated loudness versus time>
-            "N_specif_file": <Path to reference calculated specific loudness>
-            "N_specif_bark": <Bark value of the reference calculation>
+            "xls": <Path to the reference .xlsx file>,
+            "tab": <Sheet name>,
+            "field": <Column of the reference loudness>,
+            ...
         }
 
     Outputs
     -------
-    tst : bool
-        Compliance to ISO 532-1 section 6.1
+    tst : int
+        1 if compliant with ISO 532-1 section 6.1, 0 otherwise (including
+        when the series lengths differ by more than one sample, in which
+        case no plot is drawn)
     """
 
     # Load signal and compute third octave band spectrum

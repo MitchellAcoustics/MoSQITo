@@ -73,6 +73,16 @@ def validation_sii_octave(reference):
     The compliance is assessed according with a 1% tolerance.
     One .png compliance plot is generated.
 
+    Parameters
+    ----------
+    reference : dict
+        ANSI S3.5-1997 octave band example (inputs and reference SII_spec)
+
+    Outputs
+    -------
+    tst : bool
+        Compliance of the specific SII in every band
+
     """
     # Compute SII
     SII, SII_spec, _ = _main_sii(

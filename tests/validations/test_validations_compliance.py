@@ -43,7 +43,9 @@ KNOWN_FAILURES = {
 def case(case_id, *values, marks=()):
     marks = list(marks)
     if case_id in KNOWN_FAILURES:
-        marks.append(pytest.mark.xfail(strict=True, reason=KNOWN_FAILURES[case_id]))
+        marks.append(pytest.mark.xfail(
+                strict=True, raises=AssertionError, reason=KNOWN_FAILURES[case_id]
+            ))
     return pytest.param(*values, id=case_id, marks=marks)
 
 

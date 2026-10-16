@@ -142,6 +142,7 @@ def wav_test_tonality(f, L, fs, d, dB, folder):
     )
 
 if __name__ == "__main__":
+    import os
     import sys
     import tempfile
 

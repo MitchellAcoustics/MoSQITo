@@ -25,11 +25,15 @@ def validation_roughness_ecma(fc, fm_vector):
 
     Parameters
     ----------
-    None
+    fc : int
+        Carrier frequency [Hz]
+    fm_vector : array_like
+        Modulation frequencies [Hz]
 
     Outputs
     -------
-    None
+    tst : bool
+        Compliance with the Zwicker and Fastl reference (+/- 0.1 asper)
     """
     # Stimulus parameters
     duration = 1.5

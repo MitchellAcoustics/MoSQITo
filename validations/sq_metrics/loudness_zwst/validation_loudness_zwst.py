@@ -41,7 +41,8 @@ def validation_loudness_zwst_3oct():
 
     Outputs
     -------
-    None
+    results : dict of {str: tuple of bool}
+        {signal file stem} -> (N within tolerance, N_specific within tolerance)
     """
     # Third octave levels as input for stationary loudness
     # (from ISO 532-1 annex B2) : test_signal_1
@@ -97,7 +98,8 @@ def validation_loudness_zwst():
 
     Outputs
     -------
-    None
+    results : dict of {str: tuple of bool}
+        {signal file stem} -> (N within tolerance, N_specific within tolerance)
     """
 
     #

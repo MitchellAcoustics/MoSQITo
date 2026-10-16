@@ -24,6 +24,21 @@ def validation_specific_roughness_ecma(fc, fmod, ref_file):
     Validation function for the function roughness_ecma. The input signals are generated
     according to the annex C of ECMA 418-2 (2nd edition, 2022). One .png compliance plot 
     is generated to compare the results with the references computed with the Artemis suite.
+
+    Parameters
+    ----------
+    fc : int
+        Carrier frequency [Hz]
+    fmod : int
+        Modulation frequency [Hz]
+    ref_file : str
+        Path to the Artemis reference .xlsx file
+
+    Outputs
+    -------
+    tst : bool
+        True if the specific roughness is within 10 % of the reference in
+        every band
     """
     
     # Stimulus parameters

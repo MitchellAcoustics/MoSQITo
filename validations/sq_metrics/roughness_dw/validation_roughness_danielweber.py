@@ -156,11 +156,13 @@ def validation_roughness_dw(fc):
 
     Parameters
     ----------
-    None
+    fc : int
+        Carrier frequency [Hz]
 
     Outputs
     -------
-    None
+    tst : bool
+        Compliance with the Zwicker and Fastl reference (+/- 0.1 asper)
     """
     # Stimulus parameters
     duration = 1.5
