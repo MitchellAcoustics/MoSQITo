@@ -50,7 +50,6 @@ def _noisy(real_fft, rng):
 
 @pytest.mark.roughness_dw
 @pytest.mark.parametrize("seed", range(5))
-@pytest.mark.xfail(strict=True, reason="channels holding only rounding noise are correlated (fixed in the next commit)")
 def test_roughness_ignores_rounding_noise_channels(monkeypatch, seed):
     inputs = _two_tone_inputs()
     reference = _roughness(inputs)
@@ -58,3 +57,28 @@ def test_roughness_ignores_rounding_noise_channels(monkeypatch, seed):
     monkeypatch.setattr(main_calc_module, "fft", _noisy(main_calc_module.fft, rng))
     monkeypatch.setattr(main_calc_module, "ifft", _noisy(main_calc_module.ifft, rng))
     np.testing.assert_allclose(_roughness(inputs), reference, rtol=1e-9)
+
+
+@pytest.mark.roughness_dw
+def test_channel_correlations_skip_inactive_channels():
+    rng = np.random.default_rng(0)
+    n = 4000
+    base = rng.standard_normal(n)
+    hBP = np.zeros((47, n))
+    mod_depth = np.zeros(47)
+    # channels 5 and 7: real, correlated modulation
+    hBP[5], hBP[7] = base, base + 0.1 * rng.standard_normal(n)
+    mod_depth[[5, 7]] = 0.4
+    # channels 9 and 11: rounding noise only next to a real channel, and an exactly empty one
+    hBP[9] = 1e-17 * rng.standard_normal(n)
+    mod_depth[9] = 1e-16
+    hBP[11] = 0.0
+    hBP[3] = base
+    mod_depth[3] = 0.4
+    ki = main_calc_module._channel_correlations(hBP, mod_depth)
+    # ki[i] correlates channel i with channel i + 2
+    assert ki[3] > 0.99                     # channels 3 and 5: identical modulation
+    assert ki[5] > 0.9                      # channels 5 and 7: real, correlated
+    assert ki[7] == 0.0                     # channel 9 is rounding noise
+    assert ki[9] == 0.0                     # noise channel 9 and empty channel 11
+    assert np.count_nonzero(ki) == 2        # nothing else is correlated

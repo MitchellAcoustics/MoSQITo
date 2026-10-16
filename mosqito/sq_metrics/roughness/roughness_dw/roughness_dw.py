@@ -54,6 +54,13 @@ def roughness_dw(signal, fs, overlap=0.5):
     .. math::
         R=0.25\\sum_{i=1}^{47}R'_{i}
 
+    Channels whose envelope shows no modulation (modulation depth below 1e-10, as
+    happens for sparse spectra such as two steady tones) are excluded from the
+    cross-correlation between neighbouring channels. Before this was done, such
+    channels held only floating point rounding noise, which was correlated with
+    their neighbours and made the result depend on the FFT implementation (by
+    about 0.1 % in a two-tone test).
+
     References
     ----------
     :cite:empty:`R-roughnessDW`

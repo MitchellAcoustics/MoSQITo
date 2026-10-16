@@ -12,6 +12,37 @@ from mosqito.sq_metrics.roughness.roughness_dw._ear_filter_coeff import (
 )
 from mosqito.utils import freq2bark, db2amp, amp2db, bark2freq
 
+# A channel takes part in the cross-correlation only if its modulation depth
+# (RMS of the band-passed envelope over its mean) exceeds this floor. Real
+# modulation depths are far above it (> 1e-6); a channel excited by a steady
+# component only carries floating point rounding noise (about 1e-16).
+_ACTIVE_MOD_DEPTH_FLOOR = 1e-10
+
+
+def _channel_correlations(hBP, mod_depth):
+    """Cross-correlation coefficients between channels i and i+2 (1 bark apart).
+
+    Parameters
+    ----------
+    hBP : numpy.ndarray
+        Band-passed envelopes of the 47 channels, shape (47, n).
+    mod_depth : numpy.ndarray
+        Modulation depth of each channel, shape (47,).
+
+    Returns
+    -------
+    ki : numpy.ndarray
+        Coefficients, shape (47,). Zero for any pair in which one channel is not
+        active (modulation depth below ``_ACTIVE_MOD_DEPTH_FLOOR``): correlating
+        rounding noise would make the result depend on the FFT implementation.
+    """
+    ki = zeros((47))
+    active = mod_depth > _ACTIVE_MOD_DEPTH_FLOOR
+    for i in range(0, 45):
+        if active[i] and active[i + 2]:
+            ki[i] = corrcoef(hBP[i, :], hBP[i + 2, :])[0, 1]
+    return ki
+
 
 def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     """
@@ -167,11 +198,7 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
 
     # Crosscorrelation coefficients between the envelopes of the channels
     # i and i+2 with dz= 1 bark
-    ki = zeros((47))
-
-    for i in range(0, 45):
-        if hBP[i].all() != 0 and hBP[i + 2].all() != 0:
-            ki[i] = corrcoef(hBP[i, :], hBP[i + 2, :])[0, 1]
+    ki = _channel_correlations(hBP, mod_depth)
 
     # Specific roughness calculation with gzi the modulation depth weighting
     # function given by Aures
