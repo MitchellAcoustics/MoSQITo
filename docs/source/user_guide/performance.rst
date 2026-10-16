@@ -94,3 +94,50 @@ Timings on a shared machine vary by tens of percent between runs, so read them a
 orders of magnitude. For 20 s of signal ``loudness_ecma`` went from 9.5 s to 3.4 s
 with one worker and 0.8 s with four. Results are unchanged to within about 1e-12
 relative.
+
+Optional compilation with numba
+-------------------------------
+
+The time-varying Zwicker loudness (``loudness_zwtv``) and the sharpness computed
+from it (``sharpness_din_tv``) spend most of their time in two loops that cannot
+be vectorised, because each step depends on the previous one. Installing the
+``performance`` extra compiles them with `numba <https://numba.pydata.org>`_::
+
+    pip install "mosqito[performance]"
+
+Results are identical to the plain Python ones (the compiled and plain versions
+are tested to give exactly the same numbers), and nothing else needs to change.
+
+* numba is only imported, and the loops only compiled, the first time a metric
+  that uses them is computed. ``import mosqito`` is not slower.
+* The first call compiles: about 1 s the very first time. The compiled code is
+  cached on disk (in ``__pycache__`` next to the module, or in the directory given
+  by the ``NUMBA_CACHE_DIR`` environment variable if that is not writable), so
+  later Python sessions only pay a few tens of milliseconds to load it.
+* Set ``MOSQITO_DISABLE_NUMBA=1`` to turn it off. If numba is not installed or does
+  not work, MoSQITo silently uses plain Python.
+
+Measured on a 4-core machine (best of runs), compared with the release before the
+performance work:
+
+.. list-table:: ``loudness_zwtv``, time in seconds
+   :header-rows: 1
+
+   * - Signal
+     - Previous
+     - Plain Python
+     - With numba
+   * - 1 s
+     - 1.82
+     - 0.34
+     - 0.07
+   * - 5 s
+     - 9.8
+     - 2.2
+     - 0.41
+
+For the two loops alone, on 2000 frames: the nonlinear decay takes 1815 ms
+previously, 189 ms in plain Python and 16 ms compiled; the specific loudness
+slopes take 137 ms, 148 ms and 4 ms. The slopes keep their vectorised
+implementation when numba is not installed, because a plain Python loop is slower
+than it.
