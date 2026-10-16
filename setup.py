@@ -7,7 +7,7 @@ version = __version__ = "1.2.1"
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-python_requires = ">= 3.5"
+python_requires = ">= 3.11"
 
 # MoSQITo dependencies
 with open("requirements.txt", "r") as file:
