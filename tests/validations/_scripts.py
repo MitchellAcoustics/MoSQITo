@@ -16,17 +16,6 @@ ROUGHNESS_DW = "sq_metrics/roughness_dw/validation_roughness_danielweber.py"
 ROUGHNESS_ECMA = "sq_metrics/roughness_ecma/validation_roughness_ecma.py"
 SPECIFIC_ROUGHNESS_ECMA = "sq_metrics/roughness_ecma/validation_specific_roughness_ecma.py"
 
-# Scripts whose ``__main__`` block runs nothing beyond the cases asserted in
-# test_validations_compliance.py; the smoke test does not run them again.
-ASSERTED_SCRIPTS = {
-    ZWST,
-    ZWTV,
-    SHARPNESS,
-    ROUGHNESS_DW,
-    ROUGHNESS_ECMA,
-    SPECIFIC_ROUGHNESS_ECMA,
-}
-
 
 def purge_input_modules():
     """Several scripts import from their own ``input`` package; they all share
