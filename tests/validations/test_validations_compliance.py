@@ -40,7 +40,12 @@ KNOWN_FAILURES = {
 }
 
 
+# Every case id built by ``case()``, to check KNOWN_FAILURES against.
+ALL_CASE_IDS = set()
+
+
 def case(case_id, *values, marks=()):
+    ALL_CASE_IDS.add(case_id)
     marks = list(marks)
     if case_id in KNOWN_FAILURES:
         marks.append(pytest.mark.xfail(
@@ -181,13 +186,13 @@ def test_specific_roughness_ecma(fmod):
 
 def test_known_failures_name_real_cases():
     """Guard against stale or misspelt ids in KNOWN_FAILURES."""
-    case_ids = {
-        param.id
-        for test in (test_loudness_zwst, test_loudness_zwtv, test_sharpness_din,
-                     test_sii_ansi, test_roughness_dw, test_roughness_ecma,
-                     test_specific_roughness_ecma)
-        for mark in test.pytestmark
-        if mark.name == "parametrize"
-        for param in mark.args[1]
-    }
-    assert set(KNOWN_FAILURES) <= case_ids, set(KNOWN_FAILURES) - case_ids
+    assert set(KNOWN_FAILURES) <= ALL_CASE_IDS, set(KNOWN_FAILURES) - ALL_CASE_IDS
+
+
+def test_reference_signal_counts():
+    """The cases are built from the scripts' data; make sure none go missing."""
+    assert len(load_script(ZWTV)["signal"]) == 20  # ISO 532-1 annex B4 and B5
+    sharpness = load_script(SHARPNESS)
+    assert len(sharpness["broadband"]) == 20  # DIN 45692 chapter 6
+    assert len(sharpness["narrowband"]) == 21
+    assert len(ZWST_SIGNALS) == 5  # ISO 532-1 annex B2 and B3

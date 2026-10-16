@@ -22,7 +22,8 @@ from mosqito import COLORS as clr
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# NB: this script has always written into the roughness_dw output folder
+# NB: this writes into the roughness_dw output folder, with the same file name as
+# comparison_roughness_danielweber.py, so each script overwrites the other's figure
 OUT_DIR_DW = os.path.join(HERE, "..", "roughness_dw", "output") + os.sep
 os.makedirs(OUT_DIR_DW, exist_ok=True)
 
