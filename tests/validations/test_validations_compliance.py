@@ -12,15 +12,17 @@ change fixed or broke.
 
 import pytest
 
-from ._scripts import VALIDATIONS, load_script
-
-ZWST = "sq_metrics/loudness_zwst/validation_loudness_zwst.py"
-ZWTV = "sq_metrics/loudness_zwtv/validation_loudness_zwtv.py"
-SHARPNESS = "sq_metrics/sharpness_din/validation_sharpness_din.py"
-SII = "sq_metrics/speech_intelligibility/validation_sii.py"
-ROUGHNESS_DW = "sq_metrics/roughness_dw/validation_roughness_danielweber.py"
-ROUGHNESS_ECMA = "sq_metrics/roughness_ecma/validation_roughness_ecma.py"
-SPECIFIC_ROUGHNESS_ECMA = "sq_metrics/roughness_ecma/validation_specific_roughness_ecma.py"
+from ._scripts import (
+    ROUGHNESS_DW,
+    ROUGHNESS_ECMA,
+    SHARPNESS,
+    SII,
+    SPECIFIC_ROUGHNESS_ECMA,
+    VALIDATIONS,
+    ZWST,
+    ZWTV,
+    load_script,
+)
 
 # Case id -> why it does not comply.
 KNOWN_FAILURES = {
