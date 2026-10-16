@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,11 +14,9 @@ from validations.sq_metrics.roughness_dw.input.references import (
 )
 from mosqito.sq_metrics import roughness_dw
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 
 def comparison_roughness():

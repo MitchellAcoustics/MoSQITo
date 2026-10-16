@@ -1,5 +1,6 @@
 
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -11,11 +12,9 @@ from mosqito.utils.am_sine_generator import am_sine_generator
 from input.references_specific import ref_artemis
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 def validation_specific_roughness_ecma(fc, fmod, ref_file):
     """Validation function for the roughness calculation of an audio signal

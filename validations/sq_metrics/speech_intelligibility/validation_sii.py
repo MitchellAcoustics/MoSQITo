@@ -8,6 +8,7 @@ except ImportError:
     )
 
 # Third party imports
+import os
 from numpy import array, empty, amin, amax, zeros, log10, maximum, float64
 
 # Local application imports
@@ -16,11 +17,9 @@ from mosqito.sq_metrics.speech_intelligibility.sii_ansi._band_procedure_data imp
 )
 from mosqito.sq_metrics.speech_intelligibility.sii_ansi._main_sii import _main_sii
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # Reference values from ANSI S3.5 standard
 reference = empty(2, dtype=dict)

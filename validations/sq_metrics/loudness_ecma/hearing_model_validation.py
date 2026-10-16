@@ -6,6 +6,7 @@ except ImportError:
     plt = None
 
 
+import os
 import numpy as np
 from scipy.optimize import root_scalar
 
@@ -16,11 +17,9 @@ from mosqito.utils.sine_wave_generator import (
     sine_wave_generator,
 )
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 
 def comp_loudness_wrapper(spl, freq, phon_1kHz):

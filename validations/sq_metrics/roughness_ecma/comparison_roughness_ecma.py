@@ -6,6 +6,7 @@ Created on Tue Nov 24 16:43:45 2020
 """
 
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,13 +20,11 @@ from input.references import (
 from mosqito.sq_metrics import roughness_dw, roughness_ecma
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # NB: this writes into the roughness_dw output folder, with the same file name as
 # comparison_roughness_danielweber.py, so each script overwrites the other's figure
 OUT_DIR_DW = os.path.join(HERE, "..", "roughness_dw", "output") + os.sep
-os.makedirs(OUT_DIR_DW, exist_ok=True)
 
 def comparison_roughness():
 

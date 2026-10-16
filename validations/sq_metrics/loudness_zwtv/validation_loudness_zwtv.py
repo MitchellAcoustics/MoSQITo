@@ -8,6 +8,7 @@ except ImportError:
     )
 
 # Third party imports
+import os
 import numpy as np
 from pandas import ExcelFile, read_excel
 import warnings
@@ -18,11 +19,9 @@ from mosqito.sq_metrics import loudness_zwtv
 from mosqito.utils import load
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # Test signals as input for time-varying loudness
 # (from ISO 532-1 annex B4)

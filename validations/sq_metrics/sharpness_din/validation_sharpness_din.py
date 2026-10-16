@@ -8,17 +8,16 @@ except ImportError:
     )
 
 # Third party imports
+import os
 import numpy as np
 
 # Local application imports
 from mosqito.sq_metrics import sharpness_din_st
 from mosqito.utils import load
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # Signals and results from DIN 45692_2009E, chapter 6
 broadband = np.zeros((20), dtype=dict)

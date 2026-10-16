@@ -6,6 +6,7 @@ except ImportError:
         "In order to perform this validation you need the 'matplotlib' package."
     )
 
+import os
 from scipy.signal import sos2tf, sosfreqz, sosfilt
 from numpy import (
     log10,
@@ -29,11 +30,9 @@ from validations.sq_metrics.loudness_ecma.input.ear_filter_ecma import (
     level as level_ecma,
 )
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # generate outer and middle/inner ear filter coeeficient
 sos_ear = _ear_filter_design()

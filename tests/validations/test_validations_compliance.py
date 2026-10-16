@@ -10,6 +10,8 @@ the suite until the entry is removed, so this list records which cases a
 change fixed or broke.
 """
 
+from pathlib import Path
+
 import pytest
 
 from ._scripts import (
@@ -44,13 +46,15 @@ KNOWN_FAILURES = {
 ALL_CASE_IDS = set()
 
 
-def case(case_id, *values, marks=()):
+def case(case_id, *values, slow=False):
     ALL_CASE_IDS.add(case_id)
-    marks = list(marks)
+    marks = [pytest.mark.slow] if slow else []
     if case_id in KNOWN_FAILURES:
-        marks.append(pytest.mark.xfail(
+        marks.append(
+            pytest.mark.xfail(
                 strict=True, raises=AssertionError, reason=KNOWN_FAILURES[case_id]
-            ))
+            )
+        )
     return pytest.param(*values, id=case_id, marks=marks)
 
 
@@ -77,16 +81,16 @@ def zwst_results():
 
 
 @pytest.mark.parametrize(
-    "signal, quantity",
+    "signal, verdict_index",
     [
-        case(f"zwst-{signal}-{quantity}", signal, quantity)
+        case(f"zwst-{signal}-{quantity}", signal, i)
         for signal in ZWST_SIGNALS
-        for quantity in ("N", "N_specific")
+        for i, quantity in enumerate(("N", "N_specific"))
     ],
 )
-def test_loudness_zwst(zwst_results, signal, quantity):
-    is_N_close, is_N_specific_close = zwst_results[signal]
-    assert {"N": is_N_close, "N_specific": is_N_specific_close}[quantity]
+def test_loudness_zwst(zwst_results, signal, verdict_index):
+    # verdicts are (N within tolerance, N_specific within tolerance)
+    assert zwst_results[signal][verdict_index]
 
 
 # --- ISO 532-1 time-varying loudness (annex B4 and B5) -----------------------
@@ -95,7 +99,7 @@ def test_loudness_zwst(zwst_results, signal, quantity):
 def _zwtv_cases():
     signals = load_script(ZWTV)["signal"]
     return [
-        case(f"zwtv-{s['tab']}", i, marks=[pytest.mark.slow])
+        case(f"zwtv-{s['tab']}", i, slow=True)
         for i, s in enumerate(signals)
     ]
 
@@ -121,7 +125,7 @@ def sharpness_results():
 def _sharpness_cases():
     script = load_script(SHARPNESS)
     return [
-        case(f"sharpness-{noise['data_file'].split('/')[-1].split('.')[0]}", noise_type, i)
+        case(f"sharpness-{Path(noise['data_file']).stem}", noise_type, i)
         for noise_type in ("broadband", "narrowband")
         for i, noise in enumerate(script[noise_type])
     ]
@@ -135,8 +139,7 @@ def test_sharpness_din(sharpness_results, noise_type, index):
 # --- ANSI S3.5-1997 speech intelligibility index -----------------------------
 
 
-@pytest.mark.parametrize("procedure", [case("sii-octave", "octave")])
-def test_sii_ansi(procedure):
+def test_sii_ansi():
     # The third-octave check in the script is not asserted: it recomputes the
     # equivalent noise spectrum in the script itself instead of calling MoSQITo.
     script = load_script(SII)
@@ -161,7 +164,7 @@ def test_roughness_dw(fc):
 @pytest.mark.parametrize(
     "index",
     [
-        case(f"roughness_ecma-fc{fc}", i, marks=[pytest.mark.slow])
+        case(f"roughness_ecma-fc{fc}", i, slow=True)
         for i, fc in enumerate(ROUGHNESS_CARRIERS)
     ],
 )

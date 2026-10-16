@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Standard library imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -11,11 +12,9 @@ from input.references import ref_zf, ref_dw
 
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 
 # # Test signal parameters as input for roughness calculation

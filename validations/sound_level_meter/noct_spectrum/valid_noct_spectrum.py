@@ -5,6 +5,7 @@ except ImportError:
         "In order to perform this validation you need the 'matplotlib' package."
     )
 
+import os
 import numpy as np
 import pyuff
 
@@ -12,11 +13,9 @@ from mosqito.sound_level_meter.noct_spectrum.noct_spectrum import (
     noct_spectrum,
 )
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 
 def valid_nthoctave(is_gen_txt=False):

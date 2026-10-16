@@ -1,4 +1,5 @@
 # Standard imports
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -9,11 +10,9 @@ from input.references import ref_zf, ref_ecma
 
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 def validation_roughness_ecma(fc, fm_vector):
     """Validation function for the roughness calculation of an audio signal

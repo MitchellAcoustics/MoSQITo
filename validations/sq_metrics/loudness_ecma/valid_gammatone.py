@@ -7,6 +7,7 @@ except ImportError:
     )
 
 
+import os
 from scipy.signal import gammatone as scipy_gamma, freqz
 import numpy as np
 
@@ -17,11 +18,9 @@ from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq imp
     _auditory_filters_centre_freq,
 )
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 # Sampling frequency
 fs = 48000

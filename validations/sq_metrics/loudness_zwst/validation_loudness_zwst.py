@@ -8,6 +8,7 @@ except ImportError:
     )
 
 # Third party imports
+import os
 from os.path import basename, splitext
 import numpy as np
 
@@ -20,11 +21,9 @@ from mosqito.sq_metrics.loudness.loudness_zwst._calc_slopes import _calc_slopes
 from input.ISO_532_1.test_signal_1 import test_signal_1
 from mosqito import COLORS as clr
 
-import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "output") + os.sep
-os.makedirs(OUT_DIR, exist_ok=True)
 
 def validation_loudness_zwst_3oct():
     """Test function for the script loudness_zwicker_stationary
@@ -202,9 +201,8 @@ def _format_plot(is_isoclose_N, is_isoclose_N_specific, N, N_iso, filename):
         transform=plt.gca().transAxes,
         bbox=props,
     )
-    out_dir = OUT_DIR
     plt.savefig(
-        out_dir + "validation_loudness_zwst_" + "_".join(filename.split(" ")) + ".png",
+        OUT_DIR + "validation_loudness_zwst_" + "_".join(filename.split(" ")) + ".png",
         format="png",
     )
     plt.close()
