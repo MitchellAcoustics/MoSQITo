@@ -25,6 +25,7 @@ def _preprocessing(signal, sb, sh):
     # Apply windowing function to first 5 ms (240 samples)
     n_fadein = 240
     w_fadein = 0.5 - 0.5 * cos(pi * arange(n_fadein) / n_fadein)
+    signal = signal.astype(float)  # copy: do not modify the caller's array
     signal[:240] *= w_fadein
 
     # Calculate zero padding at start and end of signal

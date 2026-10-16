@@ -49,7 +49,7 @@ def _noisy(real_fft, rng):
 
 
 @pytest.mark.roughness_dw
-@pytest.mark.parametrize("seed", range(5))
+@pytest.mark.parametrize("seed", range(10))
 def test_roughness_ignores_rounding_noise_channels(monkeypatch, seed):
     inputs = _two_tone_inputs()
     reference = _roughness(inputs)
