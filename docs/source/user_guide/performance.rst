@@ -54,4 +54,43 @@ Measured speed
 Measured with ``benchmarks/bench_metrics.py``, best of two runs, on a 4-core
 machine. The comparison is with the previous release.
 
-*(Table to be added with the benchmark results.)*
+.. list-table:: 5 s of signal, time in seconds (peak memory in MB)
+   :header-rows: 1
+
+   * - Function
+     - Previous
+     - Now, 1 worker
+     - Now, 4 workers
+   * - ``loudness_zwtv``
+     - 10.4 (250)
+     - 1.82 (212)
+     - not applicable
+   * - ``sharpness_din_tv``
+     - 10.2 (250)
+     - 1.64 (212)
+     - not applicable
+   * - ``loudness_ecma``
+     - 1.59 (723)
+     - 0.64 (14)
+     - 0.19 (37)
+   * - ``roughness_ecma``
+     - 7.3 (2312)
+     - 3.97 (147)
+     - 1.45 (217)
+   * - ``roughness_dw``, tonal signal
+     - 1.62 (26)
+     - 1.28 (41)
+     - 0.38 (129)
+   * - ``roughness_dw``, broadband noise
+     - 19.8 (26)
+     - 1.50 (46)
+     - 0.45 (150)
+   * - ``noct_spectrum``
+     - 0.134 (6)
+     - 0.105 (6)
+     - 0.050 (23)
+
+Timings on a shared machine vary by tens of percent between runs, so read them as
+orders of magnitude. For 20 s of signal ``loudness_ecma`` went from 9.5 s to 3.4 s
+with one worker and 0.8 s with four. Results are unchanged to within about 1e-12
+relative.
