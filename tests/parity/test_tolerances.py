@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
 """Sanity checks of the parity tolerance policy: it must accept version drift and reject real changes."""
-import os
-import sys
-
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from tolerances import assert_close  # noqa: E402
+from tolerances import assert_close
 
 pytestmark = pytest.mark.parity
 
@@ -42,8 +37,6 @@ def test_ecma_n_spec_floor_follows_threshold_not_output_max():
 
 
 def test_ecma_n_time_floor():
-    from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
-
     g = np.array([0.0, 0.0, 5.0])
     assert_close(g + 2e-7, g, "loudness_ecma", "x__N_time")
     with pytest.raises(AssertionError):

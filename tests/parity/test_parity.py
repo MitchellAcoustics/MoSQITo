@@ -2,16 +2,12 @@
 """Compare current outputs with the frozen goldens in ``tests/parity/data``."""
 import json
 import os
-import sys
 
 import numpy as np
 import pytest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-
-import generate_goldens as gen  # noqa: E402
-from tolerances import assert_close  # noqa: E402
+import generate_goldens as gen
+from tolerances import assert_close
 
 pytestmark = pytest.mark.parity
 

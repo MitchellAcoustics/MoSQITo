@@ -25,6 +25,8 @@ to the filter bank or the non-linearity), instead of a fraction of the output's 
 """
 import numpy as np
 
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
+
 RTOL = 1e-7
 ATOL_SCALE = 1e-9
 
@@ -38,17 +40,15 @@ ISO_ROUNDED = {
 
 
 ECMA_A_RTOL = 1e-6
+LTQ = np.asarray(ltq_z, dtype=float)
 
 
 def _ecma_floor(key, golden):
     """Absolute floor for ECMA-418-2 ``N_spec`` (bands x blocks) / ``N_time`` or None."""
-    from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
-
-    ltq = np.asarray(ltq_z, dtype=float)
-    if key.endswith("N_spec") and golden.ndim == 2 and golden.shape[0] == ltq.size:
-        return ECMA_A_RTOL * ltq[:, None]
+    if key.endswith("N_spec") and golden.ndim == 2 and golden.shape[0] == LTQ.size:
+        return ECMA_A_RTOL * LTQ[:, None]
     if key.endswith("N_time"):  # 0.5 * sum over bands of N_spec (eq. 116)
-        return ECMA_A_RTOL * 0.5 * ltq.sum()
+        return ECMA_A_RTOL * 0.5 * LTQ.sum()
     return None
 
 

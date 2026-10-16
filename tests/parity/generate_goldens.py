@@ -12,14 +12,13 @@ manifest records the NumPy/SciPy versions they were produced with.
 import argparse
 import json
 import os
-import platform
 import sys
 import warnings
 
 import numpy as np
+import scipy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
 try:
     import mosqito  # noqa: F401
 except ImportError:  # running from a checkout that is not installed
@@ -36,51 +35,23 @@ def _flat(prefix, values):
 
 
 def _metrics():
+    """``{metric: (function, names of the outputs it returns)}``."""
     from mosqito.sq_metrics import (
         loudness_ecma, loudness_zwst, loudness_zwst_perseg, loudness_zwtv,
         roughness_dw, roughness_ecma, sharpness_din_st, sharpness_din_tv,
     )
     from mosqito.sound_level_meter import noct_spectrum
 
-    def zwst(x, fs):
-        N, ns, bark = loudness_zwst(x, fs)
-        return {"N": N, "N_spec": ns, "bark": bark}
-
-    def zwst_perseg(x, fs):
-        N, ns, bark, t = loudness_zwst_perseg(x, fs)
-        return {"N": N, "N_spec": ns, "bark": bark, "time": t}
-
-    def zwtv(x, fs):
-        N, ns, bark, t = loudness_zwtv(x, fs)
-        return {"N": N, "N_spec": ns, "bark": bark, "time": t}
-
-    def din_st(x, fs):
-        return {"S": sharpness_din_st(x, fs)}
-
-    def din_tv(x, fs):
-        S, t = sharpness_din_tv(x, fs)
-        return {"S": S, "time": t}
-
-    def l_ecma(x, fs):
-        N, Nt, ns, bark, t = loudness_ecma(x, fs)
-        return {"N": N, "N_time": Nt, "N_spec": ns, "bark": bark, "time": t}
-
-    def r_ecma(x, fs):
-        R, Rt, Rs, bark, t = roughness_ecma(x, fs)
-        return {"R": R, "R_time": Rt, "R_spec": Rs, "bark": bark, "time": t}
-
-    def r_dw(x, fs):
-        R, Rs, bark, t = roughness_dw(x, fs)
-        return {"R": R, "R_spec": Rs, "bark": bark, "time": t}
-
-    def noct(x, fs):
-        spec, f = noct_spectrum(x, fs, 24, 12500)
-        return {"spec": spec, "fpref": f}
-
     return {
-        "loudness_zwst": zwst, "loudness_zwst_perseg": zwst_perseg, "loudness_zwtv": zwtv,
-        "sharpness_din_st": din_st, "sharpness_din_tv": din_tv, "loudness_ecma": l_ecma,
-        "roughness_ecma": r_ecma, "roughness_dw": r_dw, "noct_spectrum": noct,
+        "loudness_zwst": (loudness_zwst, ("N", "N_spec", "bark")),
+        "loudness_zwst_perseg": (loudness_zwst_perseg, ("N", "N_spec", "bark", "time")),
+        "loudness_zwtv": (loudness_zwtv, ("N", "N_spec", "bark", "time")),
+        "sharpness_din_st": (lambda x, fs: (sharpness_din_st(x, fs),), ("S",)),
+        "sharpness_din_tv": (sharpness_din_tv, ("S", "time")),
+        "loudness_ecma": (loudness_ecma, ("N", "N_time", "N_spec", "bark", "time")),
+        "roughness_ecma": (roughness_ecma, ("R", "R_time", "R_spec", "bark", "time")),
+        "roughness_dw": (roughness_dw, ("R", "R_spec", "bark", "time")),
+        "noct_spectrum": (lambda x, fs: noct_spectrum(x, fs, 24, 12500), ("spec", "fpref")),
     }
 
 
@@ -104,11 +75,11 @@ def compute_all():
     """Return ``{metric: {key: ndarray}}`` for every metric and kernel."""
     warnings.simplefilter("ignore")
     result = {}
-    metrics = _metrics()
-    for name, fn in metrics.items():
+    test_signals = sig_factory.signals()
+    for name, (fn, outputs) in _metrics().items():
         entry = {}
-        for sname, (x, fs) in sig_factory.signals().items():
-            entry.update(_flat(sname, fn(x.copy(), fs)))
+        for sname, (x, fs) in test_signals.items():
+            entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
         result[name] = entry
     for name, values in _kernels().items():
         result["kernel_" + name] = _flat("seeded", values)
@@ -119,13 +90,7 @@ def write(out_dir, results):
     os.makedirs(out_dir, exist_ok=True)
     for name, entry in results.items():
         np.savez_compressed(os.path.join(out_dir, name + ".npz"), **entry)
-    import scipy
-
-    manifest = {
-        "numpy": np.__version__, "scipy": scipy.__version__, "python": platform.python_version(),
-        "signals": {k: {"fs": fs, "samples": int(len(x))} for k, (x, fs) in sig_factory.signals().items()},
-        "files": sorted(results),
-    }
+    manifest = {"numpy": np.__version__, "scipy": scipy.__version__}
     with open(os.path.join(out_dir, "manifest.json"), "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
 
