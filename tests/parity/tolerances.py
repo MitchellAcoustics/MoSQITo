@@ -36,3 +36,19 @@ def allclose_kwargs(metric, key, golden):
     if (metric, key.split("__", 1)[-1]) in ISO_ROUNDED:
         atol = np.maximum(atol, iso_quantum(golden))
     return RTOL, atol
+
+
+def assert_close(actual, golden, metric, key, note=""):
+    """Assert ``actual`` matches ``golden`` within this module's tolerances.
+
+    Same criterion as ``numpy.testing.assert_allclose`` (``|a - g| <= atol + rtol * |g|``),
+    written out because that function cannot take an array-valued ``atol``.
+    """
+    actual, golden = np.asarray(actual, dtype=float), np.asarray(golden, dtype=float)
+    assert actual.shape == golden.shape, "%s / %s: shape %s, golden %s" % (metric, key, actual.shape, golden.shape)
+    rtol, atol = allclose_kwargs(metric, key, golden)
+    err = np.abs(actual - golden)
+    bound = atol + rtol * np.abs(golden)
+    bad = ~((err <= bound) | (np.isnan(actual) & np.isnan(golden)))
+    assert not bad.any(), "%s / %s: %d of %d values differ from the golden, worst %.3e (allowed %.3e). %s" % (
+        metric, key, bad.sum(), bad.size, err[bad].max(), np.broadcast_to(bound, err.shape)[bad][err[bad].argmax()], note)
