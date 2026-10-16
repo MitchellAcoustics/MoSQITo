@@ -210,7 +210,8 @@ def validation_sharpness_din(noise):
 
     Outputs
     -------
-    None
+    tst : numpy.array of bool
+        Compliance of each signal to DIN 45692 chapter 6
     """
 
     sharpness = np.zeros((len(noise)))
@@ -229,7 +230,7 @@ def validation_sharpness_din(noise):
 
     noise_type = noise[0]["type"]
 
-    _check_compliance(sharpness, reference, noise_type)
+    return _check_compliance(sharpness, reference, noise_type)
 
 
 def _check_compliance(sharpness, reference, noise_type):
@@ -250,8 +251,8 @@ def _check_compliance(sharpness, reference, noise_type):
 
     Outputs
     -------
-    tst : bool
-        Compliance to the reference data
+    tst : numpy.array of bool
+        Compliance of each value to the reference data
     """
     plt.figure()
 
@@ -260,9 +261,10 @@ def _check_compliance(sharpness, reference, noise_type):
 
     # Test for DIN 45692_2009E comformance (chapter 6)
     S = sharpness
-    tstS = (S >= np.amin([reference * 0.95, reference - 0.05], axis=0)).all() and (
+    tst = (S >= np.amin([reference * 0.95, reference - 0.05], axis=0)) & (
         S <= np.amax([reference * 1.05, reference + 0.05], axis=0)
-    ).all()
+    )
+    tstS = tst.all()
 
     # Tolerance curves definition
     tol_low = np.amin([reference * 0.95, reference - 0.05], axis=0)
@@ -308,6 +310,8 @@ def _check_compliance(sharpness, reference, noise_type):
         format="png",
     )
     plt.clf()
+
+    return tst
 
 
 # test de la fonction

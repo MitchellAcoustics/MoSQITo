@@ -80,6 +80,8 @@ def validation_loudness_zwst_3oct():
         splitext(basename(file_path))[0],
     )
 
+    return {splitext(basename(file_path))[0]: (is_isoclose_N, is_isoclose_N_specific)}
+
 
 def validation_loudness_zwst():
     """Test function for the script loudness_zwicker_stationary
@@ -125,6 +127,7 @@ def validation_loudness_zwst():
         },
     ]
 
+    results = {}
     for signal in signals:
         # Load signal and compute third octave band spectrum
         sig, fs = load(os.path.join(HERE, signal["data_file"]), wav_calib=2 * 2**0.5)
@@ -160,6 +163,12 @@ def validation_loudness_zwst():
             N_iso,
             splitext(basename(signal["data_file"]))[0],
         )
+        results[splitext(basename(signal["data_file"]))[0]] = (
+            is_isoclose_N,
+            is_isoclose_N_specific,
+        )
+
+    return results
 
 
 def _format_plot(is_isoclose_N, is_isoclose_N_specific, N, N_iso, filename):

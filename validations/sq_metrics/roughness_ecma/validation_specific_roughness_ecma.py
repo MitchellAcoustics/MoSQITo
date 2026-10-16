@@ -69,8 +69,8 @@ def _check_compliance(fc, fmod, R_spec, ref):
     R_spec_ref = ref[:,1]
 
     # Test for comformance (0.1 absolute tolerance with zwicker and fastl and 10% relative tolerance with ecma
-    tst = ((R_spec < R_spec_ref*1.1).all()
-                and (R_spec > R_spec_ref*0.9).all())
+    tst = ((R_spec <= R_spec_ref*1.1).all()
+                and (R_spec >= R_spec_ref*0.9).all())
 
     # Comparison plot
     fig, ax = plt.subplots(figsize=[5.76, 4.8]) 

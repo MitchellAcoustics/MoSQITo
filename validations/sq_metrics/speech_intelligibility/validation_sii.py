@@ -144,6 +144,8 @@ def validation_sii_octave(reference):
     )
     plt.clf()
 
+    return tstS
+
 
 def validation_sii_third_octave(reference):
     """Test function for the script _main_sii with third octave band procedure

@@ -190,7 +190,8 @@ def validation_loudness_zwtv(signal):
 
     Outputs
     -------
-    None
+    tst : bool
+        Compliance to ISO 532-1 section 6.1
     """
 
     # Load signal and compute third octave band spectrum
@@ -216,7 +217,7 @@ def validation_loudness_zwtv(signal):
 
     # Check ISO 532-1 compliance
     signal = {**signal, "xls": os.path.join(HERE, signal["xls"])}
-    _check_compliance(loudness, signal, OUT_DIR)
+    return _check_compliance(loudness, signal, OUT_DIR)
 
 
 def _check_compliance(loudness, signal, out_dir):

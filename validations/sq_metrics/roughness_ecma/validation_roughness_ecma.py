@@ -141,16 +141,21 @@ def _check_compliance(fc, fm_vector, R_ecma, R_ref_zf, R_ref_ecma):
 
 
 # test de la fonction
-if __name__ == "__main__":
-    # carrier frequency
-    fc_vector = np.array([125, 250, 500, 1000, 2000, 4000, 8000])
-    
-    # lower, upper modulation frequency in range for each fc
-    N_interp = 15
-    fm_all = np.array([[20,  20,  20,  20,  20,  20,  20],
-                    [100, 150, 200, 400, 350, 300, 250]])
+# carrier frequency
+fc_vector = np.array([125, 250, 500, 1000, 2000, 4000, 8000])
 
+# lower, upper modulation frequency in range for each fc
+N_interp = 15
+fm_all = np.array([[20,  20,  20,  20,  20,  20,  20],
+                [100, 150, 200, 400, 350, 300, 250]])
+
+
+def fm_vector_for(i):
+    """Modulation frequencies used for the i-th carrier of fc_vector"""
+    return np.logspace(np.log10(fm_all[0, i]),
+                    np.log10(fm_all[1, i]), N_interp, base=10)
+
+
+if __name__ == "__main__":
     for i, fc in enumerate(fc_vector):
-        fm_vector = np.logspace(np.log10(fm_all[0, i]),
-                        np.log10(fm_all[1, i]), N_interp, base=10)
-        validation_roughness_ecma(fc, fm_vector)
+        validation_roughness_ecma(fc, fm_vector_for(i))
