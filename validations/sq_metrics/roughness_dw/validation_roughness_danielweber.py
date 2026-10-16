@@ -11,6 +11,12 @@ from input.references import ref_zf, ref_dw
 
 from mosqito import COLORS as clr
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
+
 
 # # Test signal parameters as input for roughness calculation
 # # (reference values from 'ref' script)
@@ -262,7 +268,7 @@ def _check_compliance(fc, fm_vector, R_dw, R_ref_zf, R_ref_dw):
     
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_dw/output/"
+        OUT_DIR
         + "validation_roughness_dw_fc"
         +  f'{fc}'
         + "Hz"

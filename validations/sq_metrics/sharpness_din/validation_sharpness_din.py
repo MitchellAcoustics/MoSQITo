@@ -11,8 +11,14 @@ except ImportError:
 import numpy as np
 
 # Local application imports
-from mosqito.sq_metrics import sharpness_din
+from mosqito.sq_metrics import sharpness_din_st
 from mosqito.utils import load
+
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
 
 # Signals and results from DIN 45692_2009E, chapter 6
 broadband = np.zeros((20), dtype=dict)
@@ -104,7 +110,7 @@ broadband[19] = {
 narrowband = np.zeros((21), dtype=dict)
 
 narrowband[0] = {
-    "data_file": "input/narrowband_250.wav",
+    "data_file": "input/narrowband_250.WAV",
     "type": "Narrow-band",
     "S": 0.38,
 }
@@ -212,10 +218,10 @@ def validation_sharpness_din(noise):
 
     for i in range(len(noise)):
         # Load signal
-        sig, fs = load(noise[i]["data_file"], wav_calib=1)
+        sig, fs = load(os.path.join(HERE, noise[i]["data_file"]), wav_calib=1)
 
         # Compute sharpness
-        S = sharpness_din(sig, fs, weighting="din")
+        S = sharpness_din_st(sig, fs, weighting="din")
         sharpness[i] = S
 
         # Load reference value
@@ -298,7 +304,7 @@ def _check_compliance(sharpness, reference, noise_type):
     plt.ylabel("Sharpness, [acum]")
 
     plt.savefig(
-        "output/" + "validation_sharpness_" + noise_type + "_noise" + ".png",
+        OUT_DIR + "validation_sharpness_" + noise_type + "_noise" + ".png",
         format="png",
     )
     plt.clf()

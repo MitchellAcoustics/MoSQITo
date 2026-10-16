@@ -9,6 +9,12 @@ from input.references import ref_zf, ref_ecma
 
 from mosqito import COLORS as clr
 
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
+
 def validation_roughness_ecma(fc, fm_vector):
     """Validation function for the roughness calculation of an audio signal
     according to ECMA 418-2 (2nd edition, 2022).
@@ -122,7 +128,7 @@ def _check_compliance(fc, fm_vector, R_ecma, R_ref_zf, R_ref_ecma):
     
     plt.tight_layout()
     plt.savefig(
-        "./validations/sq_metrics/roughness_ecma/output/"
+        OUT_DIR
         + "validation_roughness_ecma_fc"
         +  f'{fc}'
         + "Hz"

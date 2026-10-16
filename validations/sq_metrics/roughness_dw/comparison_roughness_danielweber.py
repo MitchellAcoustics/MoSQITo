@@ -5,13 +5,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Local application imports
-from tests.sq_metrics.roughness.signals_test_generation import signal_test
+from tests.sq_metrics.roughness.signals_test_generation import signal_test_roughness
 from validations.sq_metrics.roughness_dw.input.references import (
     ref_zf,
     ref_dw,
     ref_ps,
 )
 from mosqito.sq_metrics import roughness_dw
+
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT_DIR = os.path.join(HERE, "output") + os.sep
+os.makedirs(OUT_DIR, exist_ok=True)
 
 
 def comparison_roughness():
@@ -43,11 +49,11 @@ def comparison_roughness():
         r_ps[ind_fc, :] = ref_ps(carrier[ind_fc], fmod)
         # Roughness calculation for each modulation frequency
         for ind_fmod in range(fmod.size):
-            signal = signal_test(
+            signal, _ = signal_test_roughness(
                 carrier[ind_fc], fmod[ind_fmod], mdepth, fs, duration, dB
             )
-            rtemp, _ = roughness_dw(signal, fs, overlap)
-            R[ind_fc, ind_fmod] = rtemp
+            rtemp, _, _, _ = roughness_dw(signal, fs, overlap)
+            R[ind_fc, ind_fmod] = rtemp[0]
 
     fig, (axs1, axs2, axs3) = plt.subplots(
         3, 1, figsize=(6, 6), constrained_layout=True
@@ -86,7 +92,7 @@ def comparison_roughness():
     axs3.set_title("Carrier frequency of 4000 Hz", fontsize=11)
 
     fig.savefig(
-        "./validations/sq_metrics/roughness_dw/output/"
+        OUT_DIR
         + "roughness_implementations_comparison"
         + ".png",
         format="png",
