@@ -3,7 +3,9 @@
 
 # Standard library imports
 from math import sqrt, exp
-from numpy import copy, roll, zeros, arange, asarray, array
+from numpy import copy, roll, zeros, arange, asarray, array, empty, ascontiguousarray
+
+from mosqito.utils import _jit
 
 
 def _nl_coefficients(sample_rate=2000, nl_iter=24):
@@ -32,15 +34,17 @@ def _nl_coefficients(sample_rate=2000, nl_iter=24):
     )
 
 
+@_jit.jit()
 def _nl_kernel(ui, B, out, nl_iter):
     """Sequential recurrence of the nonlinear decay for every band.
 
     Written with scalar loops and chained indexing only, so that it runs
     unchanged as plain Python on nested lists (where it is several times faster
     than the equivalent numpy mask operations: for 21 bands the cost of a numpy
-    call per step is far larger than the arithmetic) or compiled by a JIT on
-    arrays. Plain-Python callers must pass lists, not arrays: indexing an array
-    returns numpy scalars, which are several times slower than floats.
+    call per step is far larger than the arithmetic) or compiled by numba on
+    arrays (see ``mosqito.utils._jit``). Plain-Python callers must pass lists,
+    not arrays: indexing an array returns numpy scalars, which are several times
+    slower than floats.
 
     Parameters
     ----------
@@ -129,6 +133,11 @@ def _nl_loudness(core_loudness):
     ui_delta = ui_delta.reshape(core_loudness.shape[0], core_loudness.shape[1] * nl_iter)
 
     n_bands, n_frames = core_loudness.shape
+    if _jit.HAS_NUMBA:
+        out = empty((n_bands, n_frames))
+        _nl_kernel(ascontiguousarray(ui_delta), ascontiguousarray(B), out, nl_iter)
+        if _jit.HAS_NUMBA:  # still true unless numba turned out not to work
+            return out
     out = [[0.0] * n_frames for _ in range(n_bands)]
     _nl_kernel(ui_delta.tolist(), B.tolist(), out, nl_iter)
     return array(out).reshape(n_bands, n_frames)
