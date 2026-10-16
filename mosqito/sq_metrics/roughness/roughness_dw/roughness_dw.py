@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 # Standard imports
-from numpy import arange, empty
+from numpy import arange, array, stack
 
 # Local imports
 from mosqito.utils.time_segmentation import time_segmentation
+from mosqito.utils._parallel import parallel_map, resolve_workers
 from mosqito.sound_level_meter.comp_spectrum import comp_spectrum
 from mosqito.sq_metrics.roughness.roughness_dw._roughness_dw_main_calc import (
     _roughness_dw_main_calc,
@@ -13,7 +14,7 @@ from mosqito.sq_metrics.roughness.roughness_dw._gzi_weighting import _gzi_weight
 from mosqito.sq_metrics.roughness.roughness_dw._H_weighting import _H_weighting
 
 
-def roughness_dw(signal, fs, overlap=0.5):
+def roughness_dw(signal, fs, overlap=0.5, workers=None):
     """
     Computes the roughness according to Daniel and Weber method
     from a time signal
@@ -29,6 +30,11 @@ def roughness_dw(signal, fs, overlap=0.5):
         Sampling frequency [Hz]
     overlap : float
         Overlapping coefficient for the time windows of 200ms
+    workers : int, optional
+        Number of threads used to process the 200 ms segments in parallel (about
+        9 per second of signal at the default overlap). Default is the
+        ``MOSQITO_WORKERS`` environment variable if set, else 1 (no threads).
+        More than the number of cores brings nothing.
 
     Returns
     -------
@@ -93,6 +99,8 @@ def roughness_dw(signal, fs, overlap=0.5):
        >>> plt.title("Roughness = " + f"{R[0]:.2f}" + " [Asper]")
     """
 
+    workers = resolve_workers(workers)
+
     # Number of points within each frame according to the time resolution of 200ms
     nperseg = int(0.2 * fs)
     # Overlapping segment length
@@ -117,12 +125,14 @@ def roughness_dw(signal, fs, overlap=0.5):
     gzi = _gzi_weighting(arange(1, 48, 1) / 2)
 
     if len(spec.shape) > 1:
-        R = empty((nseg))
-        R_spec = empty((47, nseg))
-        for i in range(nseg):
-            R[i], R_spec[:, i], bark_axis = _roughness_dw_main_calc(
-                spec[:, i], freq_axis, fs, gzi, hWeight
-            )
+        results = parallel_map(
+            lambda i: _roughness_dw_main_calc(spec[:, i], freq_axis, fs, gzi, hWeight),
+            range(nseg),
+            workers,
+        )
+        R = array([r[0] for r in results])
+        R_spec = stack([r[1] for r in results], axis=1)
+        bark_axis = results[0][2]
     else:
         R, R_spec, bark_axis = _roughness_dw_main_calc(
             spec, freq_axis, fs, gzi, hWeight

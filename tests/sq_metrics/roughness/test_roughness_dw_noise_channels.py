@@ -42,7 +42,9 @@ def _noisy(real_fft, rng):
 
     def wrapper(x, *args, **kwargs):
         y = real_fft(x, *args, **kwargs)
-        scale = 1e-16 * np.max(np.abs(y))
+        # rounding error of a transform scales with that transform's own magnitude,
+        # so scale per transform (the last axis), whether called on one row or many
+        scale = 1e-16 * np.max(np.abs(y), axis=-1, keepdims=True)
         return y + scale * (rng.standard_normal(y.shape) + 1j * rng.standard_normal(y.shape))
 
     return wrapper
