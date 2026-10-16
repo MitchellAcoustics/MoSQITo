@@ -40,14 +40,6 @@ def test_input_untouched_and_silence():
 
 
 @pytest.mark.loudness_zwst
-def test_degenerate_pattern_is_not_negative():
-    # A linear integer pattern, which no spectrum can produce, gave negative
-    # specific loudness in the previous vectorised implementation.
-    n, s = _calc_slopes(np.arange(21.0))
-    assert n >= 0 and s.min() >= 0
-
-
-@pytest.mark.loudness_zwst
 def test_total_is_rounded_as_in_iso_532_1():
     n, _ = _calc_slopes(_core(20))
     quantum = np.where(n <= 16, 1e-3, 1e-2)

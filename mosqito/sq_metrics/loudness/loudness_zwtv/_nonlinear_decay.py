@@ -3,7 +3,7 @@
 
 # Standard library imports
 from math import sqrt, exp
-from numpy import copy, roll, zeros, empty, arange, asarray, ascontiguousarray
+from numpy import copy, roll, zeros, arange, asarray, array
 
 
 def _nl_coefficients(sample_rate=2000, nl_iter=24):
@@ -35,17 +35,20 @@ def _nl_coefficients(sample_rate=2000, nl_iter=24):
 def _nl_kernel(ui, B, out, nl_iter):
     """Sequential recurrence of the nonlinear decay for every band.
 
-    Written with scalar loops only (no numpy calls on slices) so that it runs
-    unchanged as plain Python or compiled by a JIT: for 21 bands the cost of a
-    numpy call per step is far larger than the arithmetic.
+    Written with scalar loops and chained indexing only, so that it runs
+    unchanged as plain Python on nested lists (where it is several times faster
+    than the equivalent numpy mask operations: for 21 bands the cost of a numpy
+    call per step is far larger than the arithmetic) or compiled by a JIT on
+    arrays. Plain-Python callers must pass lists, not arrays: indexing an array
+    returns numpy scalars, which are several times slower than floats.
 
     Parameters
     ----------
-    ui : numpy.ndarray
+    ui : list of lists or 2-D array
         Input upsampled by ``nl_iter``, shape (n_bands, n_frames * nl_iter).
-    B : numpy.ndarray
+    B : list or 1-D array
         Filter constants from ``_nl_coefficients``.
-    out : numpy.ndarray
+    out : list of lists or 2-D array
         Output, shape (n_bands, n_frames), filled with the filtered loudness at
         the original frame positions.
     nl_iter : int
@@ -57,18 +60,26 @@ def _nl_kernel(ui, B, out, nl_iter):
     column (the input value there, with a zero second state), as in the
     reference implementation.
     """
-    n_bands = ui.shape[0]
-    n_cols = ui.shape[1]
+    b0 = B[0]
+    b1 = B[1]
+    b2 = B[2]
+    b3 = B[3]
+    b4 = B[4]
+    b5 = B[5]
+    n_bands = len(ui)
     for r in range(n_bands):
-        uo_prev = ui[r, n_cols - 1]
+        row = ui[r]
+        orow = out[r]
+        n_cols = len(row)
+        uo_prev = row[n_cols - 1]
         u2_prev = 0.0
         for col in range(n_cols):
-            u = ui[r, col]
+            u = row[col]
             # uo: output state, follows the input unless the decay is slower
             if uo_prev > u2_prev:
-                cand = uo_prev * B[2] - u2_prev * B[3]
+                cand = uo_prev * b2 - u2_prev * b3
             else:
-                cand = uo_prev * B[4]
+                cand = uo_prev * b4
             if cand >= u:
                 uo = cand
             else:
@@ -76,14 +87,14 @@ def _nl_kernel(ui, B, out, nl_iter):
             # u2: second state
             u2 = uo
             if u < uo_prev and uo_prev > u2_prev:
-                u22 = uo_prev * B[0] - u2_prev * B[1]
+                u22 = uo_prev * b0 - u2_prev * b1
                 if u22 <= uo:
                     u2 = u22
             if u >= uo_prev:
                 if not (abs(u - uo_prev) < 1e-5 and uo <= u2_prev):
-                    u2 = (u2_prev - u) * B[5] + u
+                    u2 = (u2_prev - u) * b5 + u
             if col % nl_iter == 0:
-                out[r, col // nl_iter] = uo
+                orow[col // nl_iter] = uo
             uo_prev = uo
             u2_prev = u2
 
@@ -115,10 +126,9 @@ def _nl_loudness(core_loudness):
     ui_delta[:, :, 0] = core_loudness
     for i_in in arange(1, nl_iter):
         ui_delta[:, :, i_in] = ui_delta[:, :, i_in - 1] + delta
-    ui_delta = ascontiguousarray(
-        ui_delta.reshape(core_loudness.shape[0], core_loudness.shape[1] * nl_iter)
-    )
+    ui_delta = ui_delta.reshape(core_loudness.shape[0], core_loudness.shape[1] * nl_iter)
 
-    nl_loudness = empty(core_loudness.shape)
-    _nl_kernel(ui_delta, B, nl_loudness, nl_iter)
-    return nl_loudness
+    n_bands, n_frames = core_loudness.shape
+    out = [[0.0] * n_frames for _ in range(n_bands)]
+    _nl_kernel(ui_delta.tolist(), B.tolist(), out, nl_iter)
+    return array(out).reshape(n_bands, n_frames)
