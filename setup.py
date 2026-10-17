@@ -46,5 +46,10 @@ setuptools.setup(
     ],
     python_requires=python_requires,
     install_requires=install_requires,
+    extras_require={
+        # Optional JIT compilation of the loops that cannot be vectorised,
+        # see docs/source/user_guide/performance.rst
+        "performance": ['numba>=0.60; python_version >= "3.9"'],
+    },
     tests_require=tests_require,
 )

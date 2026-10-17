@@ -16,3 +16,15 @@ or ::
   from mosqito.<module> import <function>
   
 
+Optional: faster time-varying loudness
+--------------------------------------
+
+Two loops of the Zwicker time-varying loudness (and of the sharpness computed from
+it) cannot be vectorised. They can be compiled with `numba <https://numba.pydata.org>`_
+if you install the ``performance`` extra: ::
+
+  pip install "mosqito[performance]"
+
+Nothing else changes: total and specific loudness agree to within 1e-12, and
+without numba the same computation simply takes longer. See :doc:`performance` for the measured gain and
+how to turn it off.
