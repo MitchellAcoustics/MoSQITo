@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: |
+          pip install -e . pytest pandas openpyxl matplotlib
+      # tests/parity compares against goldens made with the NumPy/SciPy in tests/parity/data/manifest.json;
+      # it is a development aid, see tests/parity/test_parity.py.
+      - name: Test
+        run: pytest tests -q
