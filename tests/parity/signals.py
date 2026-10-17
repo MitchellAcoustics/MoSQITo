@@ -15,8 +15,6 @@ import numpy as np
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PINK_WAV = os.path.join(REPO_ROOT, "tests", "input", "Test signal 5 (pinknoise 60 dB).wav")
-
-
 FS = 48000
 
 
@@ -26,9 +24,9 @@ def _scale_to_spl(x, spl_db):
     return x * (2e-5 * 10 ** (spl_db / 20) / rms)
 
 
-def am_tone(fs=FS, dur=1.0):
+def am_tone(fs=FS):
     """1 kHz carrier, 70 Hz sinusoidal modulation, 60 dB (as in the roughness validations)."""
-    t = np.arange(int(fs * dur)) / fs
+    t = np.arange(fs) / fs
     x = 0.5 * (1 + np.sin(2 * np.pi * 70 * t)) * np.sin(2 * np.pi * 1000 * t)
     return _scale_to_spl(x, 60)
 
@@ -57,17 +55,14 @@ def odd_length():
 
 
 def pink_noise_wav():
-    """First second of the ISO 532-1 pink noise test signal (60 dB), in Pa.
+    """First second of the ISO 532-1 pink noise test signal (60 dB), in Pa, loaded as the loudness tests do."""
+    from mosqito.utils import load
 
-    ``2 * sqrt(2)`` is the ``wav_calib`` the loudness tests use for this file.
-    """
-    from scipy.io import wavfile
-
-    fs, x = wavfile.read(PINK_WAV)
-    return x[:fs].astype(float) / 32768.0 * 2 * np.sqrt(2), fs
+    x, fs = load(PINK_WAV, wav_calib=2 * 2**0.5)
+    return x[:fs], fs
 
 
-def signals():
+def all_signals():
     """Return ``{name: (samples, fs)}``."""
     wav, wav_fs = pink_noise_wav()
     return {

@@ -14,20 +14,14 @@ together when regenerating.
 import argparse
 import json
 import os
-import sys
-import warnings
 
 import numpy as np
 import scipy
 
+import mosqito
+import signals
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-try:
-    import mosqito  # noqa: F401
-except ImportError:  # running from a checkout that is not installed
-    sys.path.append(os.path.abspath(os.path.join(HERE, "..", "..")))
-
-import signals as sig_factory  # noqa: E402
-
 DATA_DIR = os.path.join(HERE, "data")
 
 
@@ -40,17 +34,15 @@ def _metrics():
     """``{metric: (function, names of the outputs it returns, signals to run it on)}``."""
     from mosqito.sq_metrics import (
         loudness_ecma, loudness_zwst, loudness_zwst_perseg, loudness_zwtv,
-        roughness_dw, roughness_ecma, sharpness_din_st, sharpness_din_tv,
+        roughness_dw, roughness_ecma,
     )
     from mosqito.sound_level_meter import noct_spectrum
 
-    iso, ecma, rough = sig_factory.ISO_SIGNALS, sig_factory.ECMA_SIGNALS, sig_factory.ROUGHNESS_SIGNALS
+    iso, ecma, rough = signals.ISO_SIGNALS, signals.ECMA_SIGNALS, signals.ROUGHNESS_SIGNALS
     return {
         "loudness_zwst": (loudness_zwst, ("N", "N_spec", "bark"), iso),
         "loudness_zwst_perseg": (loudness_zwst_perseg, ("N", "N_spec", "bark", "time"), iso),
         "loudness_zwtv": (loudness_zwtv, ("N", "N_spec", "bark", "time"), iso),
-        "sharpness_din_st": (lambda x, fs: (sharpness_din_st(x, fs),), ("S",), iso),
-        "sharpness_din_tv": (sharpness_din_tv, ("S", "time"), iso),
         "loudness_ecma": (loudness_ecma, ("N", "N_time", "N_spec", "bark", "time"), ecma),
         "roughness_ecma": (roughness_ecma, ("R", "R_time", "R_spec", "bark", "time"), rough),
         "roughness_dw": (roughness_dw, ("R", "R_spec", "bark", "time"), rough),
@@ -64,7 +56,7 @@ def _kernels():
     from mosqito.sq_metrics.loudness.loudness_zwst._main_loudness import _main_loudness
     from mosqito.sq_metrics.loudness.loudness_zwtv._nonlinear_decay import _nl_loudness
 
-    inp = sig_factory.kernel_inputs()
+    inp = signals.kernel_inputs()
     out = {}
     out["nl_loudness"] = {"in": inp["core_loudness"], "out": _nl_loudness(inp["core_loudness"].copy())}
     nm = _main_loudness(inp["third_octave_levels"].copy(), "free")
@@ -78,17 +70,15 @@ def _kernels():
 def compute_all():
     """Return ``{metric: {key: ndarray}}`` for every metric and kernel."""
     result = {}
-    test_signals = sig_factory.signals()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        for name, (fn, outputs, signal_names) in _metrics().items():
-            entry = {}
-            for sname in signal_names:
-                x, fs = test_signals[sname]
-                entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
-            result[name] = entry
-        for name, values in _kernels().items():
-            result["kernel_" + name] = _flat("seeded", values)
+    test_signals = signals.all_signals()
+    for name, (fn, outputs, signal_names) in _metrics().items():
+        entry = {}
+        for sname in signal_names:
+            x, fs = test_signals[sname]
+            entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
+        result[name] = entry
+    for name, values in _kernels().items():
+        result["kernel_" + name] = {k: np.asarray(v, dtype=float) for k, v in values.items()}
     return result
 
 
@@ -105,9 +95,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", default=DATA_DIR)
     args = parser.parse_args()
-    import mosqito as m
-
-    print("mosqito from", os.path.dirname(m.__file__))
+    print("mosqito from", os.path.dirname(mosqito.__file__))
     write(args.out, compute_all())
     print("wrote", args.out)
 

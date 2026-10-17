@@ -23,7 +23,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 EXACT = ("kernel_nl_loudness", "noct_spectrum")
 EXACT_KEYS = {("kernel_calc_slopes", "N"), ("kernel_calc_slopes_1d", "N")}
+EXACT_METRICS = set(EXACT) | {m for m, _ in EXACT_KEYS}
 STRICT_RTOL = 1e-10
+
+
+def _npz_names(d):
+    return sorted(f for f in os.listdir(d) if f.endswith(".npz"))
 
 
 def _generate(pythonpath_root, out_dir):
@@ -61,8 +66,7 @@ def main():
                                      capture_output=True, text=True)
             if removed.returncode:
                 print("warning: could not remove worktree %s:\n%s" % (worktree, removed.stderr), file=sys.stderr)
-        base_files = sorted(f for f in os.listdir(base_dir) if f.endswith(".npz"))
-        new_files = sorted(f for f in os.listdir(new_dir) if f.endswith(".npz"))
+        base_files, new_files = _npz_names(base_dir), _npz_names(new_dir)
         if not base_files or base_files != new_files:
             sys.exit("metrics differ between baseline %s and this checkout %s" % (base_files, new_files))
         failures, worst = [], {}
@@ -77,16 +81,16 @@ def main():
                 if x.shape != y.shape:
                     failures.append((metric, key + " (shape %s vs %s)" % (x.shape, y.shape), float("nan")))
                     continue
-                exact = metric in EXACT or (metric, key.split("__", 1)[-1]) in EXACT_KEYS
-                scale = max(float(np.max(np.abs(x))), 1e-300) if x.size else 1.0
-                diff = float(np.max(np.abs(x - y))) if x.size else 0.0
+                exact = metric in EXACT or (metric, key) in EXACT_KEYS
+                scale = max(float(np.max(np.abs(x[np.isfinite(x)]), initial=0.0)), 1e-300)
+                diff = float(np.nanmax(np.abs(x - y), initial=0.0))
                 worst[metric] = max(worst.get(metric, 0.0), diff / scale)
                 ok = np.array_equal(x, y, equal_nan=True) if exact else np.allclose(y, x, rtol=STRICT_RTOL, atol=STRICT_RTOL * scale, equal_nan=True)
                 if not ok:
                     failures.append((metric, key, diff / scale))
         print("%-26s %s" % ("metric", "worst relative difference"))
         for metric, d in worst.items():
-            print("%-26s %.2e%s" % (metric, d, "  (exact required)" if metric in EXACT or any(m == metric for m, _ in EXACT_KEYS) else ""))
+            print("%-26s %.2e%s" % (metric, d, "  (exact required)" if metric in EXACT_METRICS else ""))
         if failures:
             print("\nDIFFERENCES BEYOND STRICT TOLERANCE:")
             for metric, key, d in failures:
