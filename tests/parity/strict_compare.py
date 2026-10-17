@@ -3,7 +3,7 @@
 
 Run by the author of a refactoring change (not part of the test suite)::
 
-    uv run python tests/parity/strict_compare.py --baseline <commit-or-branch>
+    python tests/parity/strict_compare.py --baseline <commit-or-branch>
 
 The baseline is checked out in a temporary ``git worktree``; the same generator
 is run once against it and once against this checkout, in the same environment,

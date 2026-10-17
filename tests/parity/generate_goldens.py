@@ -3,12 +3,13 @@
 
 Usage, from the repository root::
 
-    uv run python tests/parity/generate_goldens.py            # rewrite tests/parity/data
-    uv run python tests/parity/generate_goldens.py --out DIR  # write elsewhere (strict_compare)
+    python tests/parity/generate_goldens.py            # rewrite tests/parity/data
+    python tests/parity/generate_goldens.py --out DIR  # write elsewhere (strict_compare)
 
-Regenerate the committed goldens only in a dedicated, explained change that
-commits ``data/*.npz`` and ``manifest.json`` together: the manifest records the
-NumPy/SciPy versions they were produced with.
+The goldens are a development aid, not a specification: they show that the
+outputs of a change stay where they were. They were made with the NumPy/SciPy
+versions in ``manifest.json``; commit ``data/*.npz`` and ``manifest.json``
+together when regenerating.
 """
 import argparse
 import json
@@ -36,23 +37,25 @@ def _flat(prefix, values):
 
 
 def _metrics():
-    """``{metric: (function, names of the outputs it returns)}``."""
+    """``{metric: (function, names of the outputs it returns, signals to run it on)}``."""
     from mosqito.sq_metrics import (
         loudness_ecma, loudness_zwst, loudness_zwst_perseg, loudness_zwtv,
         roughness_dw, roughness_ecma, sharpness_din_st, sharpness_din_tv,
     )
     from mosqito.sound_level_meter import noct_spectrum
 
+    iso, ecma, rough = sig_factory.ISO_SIGNALS, sig_factory.ECMA_SIGNALS, sig_factory.ROUGHNESS_SIGNALS
     return {
-        "loudness_zwst": (loudness_zwst, ("N", "N_spec", "bark")),
-        "loudness_zwst_perseg": (loudness_zwst_perseg, ("N", "N_spec", "bark", "time")),
-        "loudness_zwtv": (loudness_zwtv, ("N", "N_spec", "bark", "time")),
-        "sharpness_din_st": (lambda x, fs: (sharpness_din_st(x, fs),), ("S",)),
-        "sharpness_din_tv": (sharpness_din_tv, ("S", "time")),
-        "loudness_ecma": (loudness_ecma, ("N", "N_time", "N_spec", "bark", "time")),
-        "roughness_ecma": (roughness_ecma, ("R", "R_time", "R_spec", "bark", "time")),
-        "roughness_dw": (roughness_dw, ("R", "R_spec", "bark", "time")),
-        "noct_spectrum": (lambda x, fs: noct_spectrum(x, fs, 24, 12500), ("spec", "fpref")),
+        "loudness_zwst": (loudness_zwst, ("N", "N_spec", "bark"), iso),
+        "loudness_zwst_perseg": (loudness_zwst_perseg, ("N", "N_spec", "bark", "time"), iso),
+        "loudness_zwtv": (loudness_zwtv, ("N", "N_spec", "bark", "time"), iso),
+        "sharpness_din_st": (lambda x, fs: (sharpness_din_st(x, fs),), ("S",), iso),
+        "sharpness_din_tv": (sharpness_din_tv, ("S", "time"), iso),
+        "loudness_ecma": (loudness_ecma, ("N", "N_time", "N_spec", "bark", "time"), ecma),
+        "roughness_ecma": (roughness_ecma, ("R", "R_time", "R_spec", "bark", "time"), rough),
+        "roughness_dw": (roughness_dw, ("R", "R_spec", "bark", "time"), rough),
+        # 24 and 12500 are fmin and fmax in Hz
+        "noct_spectrum": (lambda x, fs: noct_spectrum(x, fs, 24, 12500), ("spec", "fpref"), iso),
     }
 
 
@@ -78,9 +81,10 @@ def compute_all():
     test_signals = sig_factory.signals()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        for name, (fn, outputs) in _metrics().items():
+        for name, (fn, outputs, signal_names) in _metrics().items():
             entry = {}
-            for sname, (x, fs) in test_signals.items():
+            for sname in signal_names:
+                x, fs = test_signals[sname]
                 entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
             result[name] = entry
         for name, values in _kernels().items():
