@@ -38,9 +38,7 @@ def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000, workers=None):
         range, to 1 Hz for infrasonic range (f < 20 Hz) and to 1 MHz for
         ultrasonic range (f > 31.5 kHz)
     workers : int, optional
-        Number of threads used to filter the bands in parallel (one task per
-        band, about 28 for third octaves between 24 Hz and 12.5 kHz). Default is
-        1 (no threads). More than the number of cores brings nothing.
+        Number of threads (default 1).
 
     Returns
     -------

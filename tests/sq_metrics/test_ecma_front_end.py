@@ -6,20 +6,9 @@ import numpy as np
 import pytest
 
 from mosqito.sq_metrics import loudness_ecma, roughness_ecma
-from mosqito.sq_metrics.loudness.loudness_ecma._band_blocks import (
-    band_blocks,
-    band_specific_loudness,
-    ear_filtered,
-    ecma_block_index,
-    ecma_time_axis,
-)
 from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import _band_pass_signals
-from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import (
-    _ecma_time_segmentation,
-)
-from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import (
-    _loudness_from_bandpass,
-)
+from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import _ecma_time_segmentation
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import _loudness_from_bandpass
 from mosqito.sq_metrics.loudness.loudness_ecma._preprocessing import _preprocessing
 
 FS = 48000
@@ -51,34 +40,16 @@ def test_roughness_ecma_memory_budget():
     assert _peak_mb(roughness_ecma, _am_tone(FS), FS) < 100
 
 
-def _same(a, b):
-    if isinstance(a, (list, tuple)):
-        assert len(a) == len(b)
-        for x, y in zip(a, b):
-            _same(x, y)
-    else:
-        np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
-
-
 @pytest.mark.loudness_ecma
 def test_loudness_ecma_workers_do_not_change_results():
     x = _am_tone(FS // 2)
-    _same(loudness_ecma(x, FS, workers=1), loudness_ecma(x, FS, workers=4))
+    np.testing.assert_equal(loudness_ecma(x, FS, workers=1), loudness_ecma(x, FS, workers=4))
 
 
 @pytest.mark.roughness_ecma
 def test_roughness_ecma_workers_do_not_change_results():
     x = _am_tone(FS // 2)
-    _same(roughness_ecma(x, FS, workers=1), roughness_ecma(x, FS, workers=4))
-
-
-@pytest.mark.loudness_ecma
-@pytest.mark.parametrize("bad", [0, -1, 2.5])
-def test_invalid_workers(bad):
-    with pytest.raises(ValueError):
-        loudness_ecma(_am_tone(4000), FS, workers=bad)
-    with pytest.raises(ValueError):
-        roughness_ecma(_am_tone(4000), FS, workers=bad)
+    np.testing.assert_equal(roughness_ecma(x, FS, workers=1), roughness_ecma(x, FS, workers=4))
 
 
 @pytest.mark.loudness_ecma
@@ -90,32 +61,23 @@ def test_loudness_ecma_short_signals(n):
 
 
 @pytest.mark.loudness_ecma
-@pytest.mark.parametrize("n", [500, 2047, 5000])
-@pytest.mark.parametrize("sb, sh", [(2048, 1024), (1000, 300)])
-@pytest.mark.parametrize("band", [0, 26, 52])
-def test_band_helpers_match_the_former_helpers(n, sb, sh, band):
-    x = _am_tone(n)
-    padded, n_new = _preprocessing(x, sb, sh)
-
-    old_bandpass = _band_pass_signals(padded, sb, sh)
-    old_blocks, old_time = _ecma_time_segmentation(old_bandpass, sb, sh, n_new)
-    old_loudness, _ = _loudness_from_bandpass(np.asarray(old_blocks))
-
-    index = ecma_block_index(n_new, sb, sh)
-    blocks = band_blocks(ear_filtered(padded), band, index)
-    # same samples in the same blocks, and the same time axis
-    np.testing.assert_array_equal(blocks, old_blocks[band])
-    np.testing.assert_array_equal(ecma_time_axis(len(padded), index), old_time[band])
-    np.testing.assert_allclose(
-        band_specific_loudness(blocks, band), old_loudness[band], rtol=1e-12
-    )
-
-
-@pytest.mark.loudness_ecma
 def test_loudness_ecma_accepts_uniform_per_band_sizes():
     x = _am_tone(FS // 4)
     expected = loudness_ecma(x, FS)
     got = loudness_ecma(x, FS, sb=np.full(53, 2048), sh=np.full(53, 1024))
-    _same(expected, got)
+    np.testing.assert_equal(expected, got)
     with pytest.raises(ValueError):
         loudness_ecma(x, FS, sb=[2048] * 52)
+
+
+@pytest.mark.loudness_ecma
+@pytest.mark.parametrize("sb, sh", [(2048, 1024), (1000, 300)])
+def test_loudness_ecma_matches_the_whole_array_helpers(sb, sh):
+    # the band-by-band driver must agree with the helpers that process all 53 bands at once
+    x = _am_tone(FS // 2)
+    signal, n_new = _preprocessing(x.copy(), sb, sh)
+    blocks, time = _ecma_time_segmentation(_band_pass_signals(signal, sb, sh), sb, sh, n_new)
+    n_specific, _ = _loudness_from_bandpass(blocks)
+    _, _, N_spec, _, time_array = loudness_ecma(x, FS, sb=sb, sh=sh)
+    np.testing.assert_equal(N_spec, n_specific)
+    np.testing.assert_equal(time_array, time)

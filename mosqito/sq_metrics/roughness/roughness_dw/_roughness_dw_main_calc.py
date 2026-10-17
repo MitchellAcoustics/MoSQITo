@@ -36,10 +36,6 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     -------
     R : float
         Roughness computed for the given spectrum.
-    R_spec : numpy.ndarray
-        Specific roughness of the 47 channels.
-    zi : numpy.ndarray
-        Channel centres in bark.
 
     """
     if len(spec) != len(freq_axis):
@@ -73,10 +69,13 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
 
     # --------------------------------- stage 1 ------------------------------------
     # ----------------Creation of the specific excitations functions----------------
+
     level = spec_dB[audible_index]
     bark = bark_axis[audible_index]
-    # Terhardt's slopes definition: lower slope [dB/Bark], upper slope [dB/Bark]
+    # Terhardt's slopes definition
+    # lower slope [dB/Bark]
     s1 = -27
+    # upper slope [dB/Bark]
     s2 = minimum(-24 - (230 / freq_axis[audible_index]) + (0.2 * level), 0)
 
     # The excitation pattern are calculated for 47 overlapping 1-bark-wide channels
@@ -132,6 +131,7 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
 
     # ------------------------------- stage 2 --------------------------------------
     # ---------------------modulation depth calculation-----------------------------
+
     # The fluctuations of the envelope are contained in the low frequency part
     # of the spec of specific excitations in absolute value
     h0 = mean(temporal_excitation, axis=1)
@@ -154,6 +154,7 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
 
     # ------------------------------- stage 3 --------------------------------------
     # ----------------roughness calculation with cross correlation------------------
+
     # Crosscorrelation coefficients between the envelopes of the channels
     # i and i+2 with dz= 1 bark. Channels without modulation hold only rounding
     # noise (modulation depth of order 1e-16) and are left out.
@@ -166,6 +167,7 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # Specific roughness calculation with gzi the modulation depth weighting
     # function given by Aures
     R_spec = empty((47))
+
     R_spec[0] = gzi[0] * pow(mod_depth[0] * ki[0], 2)
     R_spec[1] = gzi[1] * pow(mod_depth[1] * ki[1], 2)
     for i in arange(2, 45):
@@ -176,6 +178,7 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # Total roughness calculation with calibration factor of 0.25 given in the article
     # to produce a roughness of 1 asper for a 1-kHz, 60dB tone with carrier frequency
     # of 70 Hz and a modulation depth of 1
+
     R = 0.25 * sum(R_spec)
 
     return R, R_spec, zi

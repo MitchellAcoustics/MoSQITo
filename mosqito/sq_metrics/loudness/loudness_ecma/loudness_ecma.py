@@ -1,25 +1,28 @@
 # -*- coding: utf-8 -*-
 
-from numpy import sum, log10, mean, linspace
+from numpy import mean, linspace, sum, log10, ones
 
 # Project Imports
-from mosqito.sq_metrics.loudness.loudness_ecma._band_blocks import (
-    N_BANDS,
-    band_blocks,
-    band_specific_loudness,
-    ear_filtered,
-    ecma_block_index,
-    ecma_time_axis,
-    per_band,
+from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import (
+    _auditory_filters_centre_freq,
 )
+from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import (
+    _band_pass_signal,
+    _ear_filtering,
+)
+
+from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import (
+    _segment_band,
+)
+
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import (
+    _band_specific_loudness,
+)
+
 from mosqito.sq_metrics.loudness.loudness_ecma._preprocessing import (
     _preprocessing,
 )
 from mosqito.utils._parallel import parallel_map, resolve_workers
-
-# Data import
-# Threshold in quiet
-from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
 
 
 def loudness_ecma(signal, fs, sb=2048, sh=1024, workers=None):
@@ -38,8 +41,7 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024, workers=None):
     sh: int or list of int
         Hop size.
     workers: int, optional
-        Number of threads used to process the 53 bands in parallel. Default is
-        1 (no threads). More workers than bands have no effect.
+        Number of threads (default 1).
 
     Returns
     -------
@@ -47,13 +49,13 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024, workers=None):
         Overall loudness representative value [sone_HMS].
     N_time : numpy.ndarray
         Loudness over time [sone_HMS], size (Ntime,).
-    N_specific : list of numpy.ndarray
-        Specific loudness [sone_HMS/bark], 53 arrays of size (Ntime,).
-        Each of the 53 elements of the list corresponds to the time-dependant specific loudness for a given bark band. Can be a ragged array if a different sb/sh are used for each band.
+    N_specific : numpy.ndarray
+        Specific loudness [sone_HMS/bark], size (Nbark, Ntime).
+	    Each of the 53 elements of the list corresponds to the time-dependant specific loudness for a given bark band. Can be a ragged array if a different sb/sh are used for each band.
     bark_axis : numpy.ndarray
         Corresponding bark axis, size (Nbark,).
-    time_array : list of numpy.ndarray
-        Time axis, 53 arrays of size (Ntime,).
+    time_array : numpy.ndarray
+        Time axis, size (Nbark, Ntime).
 
     Warning
     -------
@@ -106,30 +108,38 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024, workers=None):
     # Windowing and zero-padding (5.1.2)
     signal, n_new = _preprocessing(signal, sb, sh)
 
-    # Block and hop sizes per band
-    sb = per_band(sb, "sb")
-    sh = per_band(sh, "sh")
+    if isinstance(sb, int):
+        sb = sb * ones(53, dtype=int)
+    elif len(sb) != 53:
+        raise ValueError("ERROR: len(sb) shall be either 1 or 53")
+    if isinstance(sh, int):
+        sh = sh * ones(53, dtype=int)
+    elif len(sh) != 53:
+        raise ValueError("ERROR: len(sh) shall be either 1 or 53")
+    # Eq. (19)
     i_start = sb[0] - sb
 
-    # Outer and middle ear filtering (5.1.2)
-    ear_signal = ear_filtered(signal)
+    # Outer and middle ear filtering (5.1.2) and centre frequencies, once for all bands
+    signal_filtered = _ear_filtering(signal)
+    centre_freq = _auditory_filters_centre_freq()
 
-    # Block indices (5.1.5) and time axis of each band
-    layouts = {}
-    for z in range(N_BANDS):
-        key = (sb[z], sh[z], i_start[z])
-        if key not in layouts:
-            index = ecma_block_index(n_new, *key)
-            layouts[key] = (index, ecma_time_axis(len(signal), index))
+    # Each band is filtered (5.1.3 to 5.1.4), segmented into blocks (5.1.5) and
+    # reduced to its specific loudness (5.1.6 to 5.1.9) on its own, so that the
+    # blocks of all 53 bands are never held in memory at once.
+    def band_loudness(band_number):
+        band_pass_signal = _band_pass_signal(signal_filtered, centre_freq[band_number])
+        blocks, time = _segment_band(
+            band_pass_signal,
+            sb[band_number],
+            sh[band_number],
+            i_start[band_number],
+            n_new,
+        )
+        return _band_specific_loudness(blocks, band_number), time
 
-    # Band-pass filtering and segmentation (5.1.3 to 5.1.5), rectification,
-    # rms and non-linearity (5.1.6 to 5.1.9), one band at a time
-    def one_band(band):
-        index = layouts[(sb[band], sh[band], i_start[band])][0]
-        return band_specific_loudness(band_blocks(ear_signal, band, index), band)
-
-    N_spec = parallel_map(one_band, range(N_BANDS), workers)
-    time_array = [layouts[(sb[z], sh[z], i_start[z])][1].copy() for z in range(N_BANDS)]
+    results = parallel_map(band_loudness, range(53), workers)
+    N_spec = [r[0] for r in results]
+    time_array = [r[1] for r in results]
 
     # Time dependent values (eq. 116)
     delta_z = 0.5

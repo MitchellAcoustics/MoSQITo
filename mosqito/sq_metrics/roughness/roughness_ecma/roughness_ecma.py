@@ -4,14 +4,10 @@ from scipy.signal import hilbert, resample, decimate
 
 # Project Imports
 from mosqito.sq_metrics.loudness.loudness_ecma._preprocessing import _preprocessing
-from mosqito.sq_metrics.loudness.loudness_ecma._band_blocks import (
-    band_blocks,
-    band_specific_loudness,
-    ear_filtered,
-    ecma_block_index,
-    ecma_time_axis,
-)
+from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import _band_pass_signal, _ear_filtering
+from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import _segment_band
 from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import _auditory_filters_centre_freq
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import _band_specific_loudness
 from mosqito.utils._parallel import parallel_map, resolve_workers
 
 from mosqito.sq_metrics.roughness.roughness_ecma._weighting import _f_max, _r_max, _Q2_high, _Q2_low, _high_mod_rate_weighting, _low_mod_rate_weighting
@@ -37,9 +33,7 @@ def roughness_ecma(signal, fs, workers=None):
     fs: int
         Sampling frequency [Hz].
     workers: int, optional
-        Number of threads used to process the 53 bands in parallel. Default is
-        1 (no threads). More workers than bands have no effect; each thread
-        holds the working arrays of one band, which grow with the signal duration.
+        Number of threads (default 1).
 
     Returns
     -------
@@ -122,33 +116,35 @@ def roughness_ecma(signal, fs, workers=None):
     # Preprocessing 
     signal, n_new = _preprocessing(signal, sb, sh)
     # Outer and middle ear filtering
-    ear_signal = ear_filtered(signal)
-    # Time segmentation: the same block indices for every band
-    index = ecma_block_index(n_new, sb, sh)
-    time_axis = ecma_time_axis(len(signal), index)
+    signal_filtered = _ear_filtering(signal)
 
     # Downsampling to 1500 Hz
     sbb = 512 
     downsampling_factor = 32
 
-    # Each band is filtered, segmented, reduced to its specific loudness and
-    # converted to a downsampled envelope on its own (7.1.2), so that the
-    # (53, blocks, block size) array of all bands is never held in memory.
-    def one_band(band):
-        blocks = band_blocks(ear_signal, band, index)
-        n_spec = band_specific_loudness(blocks, band)
-        # ENVELOPE CALCULATION AND DOWNSAMPLING (7.1.2)
-        envelope = abs(hilbert(blocks, axis=-1))
-        envelope = decimate(envelope, downsampling_factor // 4, axis=-1)
-        envelope = decimate(envelope, 4, axis=-1)
-        return n_spec, envelope
+    # Each band is filtered, segmented into blocks, reduced to its specific
+    # loudness and to its downsampled envelopes on its own, so that the blocks of
+    # all 53 bands are never held in memory at once.
+    def band_results(band_number):
+        # Gammatone bandpass filtering
+        band_pass_signal = _band_pass_signal(signal_filtered, center_freq[band_number])
+        # Time segmentation
+        blocks, time = _segment_band(band_pass_signal, sb, sh, 0, n_new)
+        # LOUDNESS COMPUTATION
+        n_specific = _band_specific_loudness(blocks, band_number)
+        # ENVELOPPE CALCULATION AND DOWNSAMPLING (7.1.2)
+        envelopes = abs(hilbert(blocks))
+        envelopes_downsampled_ = decimate(envelopes, downsampling_factor//4, axis=1)
+        envelopes_downsampled = decimate(envelopes_downsampled_, 4, axis=1)
+        return time, n_specific, envelopes_downsampled
 
-    results = parallel_map(one_band, range(CBF), workers)
-    # Specific loudness, shape (Ntime, 53), and envelopes, shape (Ntime, 53, sbb)
-    N_specific = np.array([r[0] for r in results]).T
-    envelopes_downsampled = np.stack([r[1] for r in results], axis=1)
+    results = parallel_map(band_results, range(CBF), workers)
+    time_axis = results[0][0]
+    N_specific = np.array([r[1] for r in results]).T
     bark_axis = np.linspace(0.5, 26.5, num=53, endpoint=True)
     L = N_specific.shape[0]
+    # Transposition to fit with the standard writing
+    envelopes_downsampled = np.stack([r[2] for r in results], axis=1)
 
     # CALCULATION OF SCALED POWER SPECTRUM (7.1.3)
     

@@ -29,33 +29,38 @@ def _loudness_from_bandpass(block_array, rectify=True):
         Bark axis
 
     """
-    # Rectification (5.1.6)
-    if rectify==True:
-        block_array_rect = np.clip(block_array, a_min=0.00, a_max=None)
-    else:
-        block_array_rect = block_array
     n_specific = []
     for band_number in range(53):
-        # ROOT-MEAN-SQUARE (section 5.1.6)
-        # After the segmentation of the signal into blocks, root-mean square values of each block are calculated
-        # according to Formula 17.
-        rms_block_value = sqrt(
-            2 * mean(array(block_array_rect[band_number]) ** 2, axis=1)
+        n_specific.append(
+            _band_specific_loudness(block_array[band_number], band_number, rectify)
         )
-
-        # NON-LINEARITY (section 5.1.7)
-        # This section covers the other part of the calculations needed to consider the non-linear transformation
-        # of sound pressure to specific loudness that does the the auditory system. After this point, the
-        # computation is done equally to every block in which we have divided our signal.
-        a_prime = _nonlinearity(rms_block_value)
-
-        # SPECIFIC LOUDNESS CONSIDERING THE THRESHOLD IN QUIET (section 5.1.8)
-        # The next calculation helps us obtain the result for the specific loudness - specific loudness with
-        # consideration of the lower threshold of hearing.
-        a_prime[a_prime < ltq_z[band_number]] = ltq_z[band_number]
-        N_prime = a_prime - ltq_z[band_number]
-        n_specific.append(N_prime)
 
     bark_axis = linspace(0.5, 26.5, num=53, endpoint=True)
     
     return n_specific, bark_axis
+
+
+def _band_specific_loudness(blocks, band_number, rectify=True):
+    """Specific loudness of one critical band from its blocks, array of size
+    (nseg, nperseg). See _loudness_from_bandpass."""
+    # Rectification (5.1.6)
+    if rectify==True:
+        block_rect = np.clip(blocks, a_min=0.00, a_max=None)
+    else:
+        block_rect = blocks
+    # ROOT-MEAN-SQUARE (section 5.1.6)
+    # After the segmentation of the signal into blocks, root-mean square values of each block are calculated
+    # according to Formula 17.
+    rms_block_value = sqrt(2 * mean(array(block_rect) ** 2, axis=1))
+
+    # NON-LINEARITY (section 5.1.7)
+    # This section covers the other part of the calculations needed to consider the non-linear transformation
+    # of sound pressure to specific loudness that does the the auditory system. After this point, the
+    # computation is done equally to every block in which we have divided our signal.
+    a_prime = _nonlinearity(rms_block_value)
+
+    # SPECIFIC LOUDNESS CONSIDERING THE THRESHOLD IN QUIET (section 5.1.8)
+    # The next calculation helps us obtain the result for the specific loudness - specific loudness with
+    # consideration of the lower threshold of hearing.
+    a_prime[a_prime < ltq_z[band_number]] = ltq_z[band_number]
+    return a_prime - ltq_z[band_number]

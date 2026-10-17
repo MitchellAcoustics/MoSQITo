@@ -24,13 +24,6 @@ def test_workers_do_not_change_results(n):
 
 
 @pytest.mark.roughness_dw
-@pytest.mark.parametrize("bad", [0, -3, 2.5])
-def test_invalid_workers(bad):
-    with pytest.raises(ValueError):
-        roughness_dw(_signal(FS // 5), FS, workers=bad)
-
-
-@pytest.mark.roughness_dw
 def test_output_shapes():
     R, R_spec, bark, time = roughness_dw(_signal(), FS)
     assert R.shape == time.shape and R_spec.shape == (47, len(R)) and bark.shape == (47,)

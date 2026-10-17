@@ -57,6 +57,21 @@ def _nl_kernel(ui, B, out, nl_iter):
     column (the input value there, with a zero second state), as in the
     reference implementation.
     """
+    # Truth table for u2 & uo, from the original implementation
+    # u2 = nl_lp["uo_last"] * nl_lp["B"][0] - nl_lp["u2_last"] * nl_lp["B"][1]
+    # u2' = (nl_lp["u2_last"] - ui) * nl_lp["B"][5] + ui
+    # ui < uo(j-1) | uo(j-1) > u2(j-1) | uo < ui  |u2 > uo  |uo' < ui  |abs(ui -  uo(j-1)) < 1e-5 | ui > u2(j-1) | uo                                      |  u2
+    # ---------------------------------------------------------------
+    #     Truth           Truth           Truth      Truth       --             --                                 ui                                       ui
+    #     Truth           Truth           False      Truth       --             --                                 uo=f(uo(j-1),u2(j-1),B(2),B(3))          uo=f(uo(j-1),u2(j-1),B(2),B(3))
+    #     Truth           Truth           Truth      False       --             --                                 ui                                       u2=f(uo(j-1),u2(j-1),B(0),B(1))
+    #     Truth           Truth           False      False       --             --                                 uo=f(uo(j-1),u2(j-1),B(2),B(3))          u2=f(uo(j-1),u2(j-1),B(0),B(1))
+    #     Truth           False                                  Truth                                             ui                                       ui
+    #     Truth           False                                  False                                             uo=f(uo(j-1),B(4)                        uo=f(uo(j-1),B(4)
+    #     False                                                                Truth                  Truth        ui                                       u2=f(u2(j-1),B(5),ui(j)
+    #     False                                                                Truth                  False        ui                                       ui
+    #     False                                                                False                  Truth        ui                                       u2=f(u2(j-1),B(5),ui(j)
+    #     False                                                                False                  False        ui                                       u2=f(u2(j-1),B(5),ui(j)
     b0 = B[0]
     b1 = B[1]
     b2 = B[2]
@@ -81,7 +96,7 @@ def _nl_kernel(ui, B, out, nl_iter):
                 uo = cand
             else:
                 uo = u
-            # u2: second state
+            # u2: second state (default: uo)
             u2 = uo
             if u < uo_prev and uo_prev > u2_prev:
                 u22 = uo_prev * b0 - u2_prev * b1

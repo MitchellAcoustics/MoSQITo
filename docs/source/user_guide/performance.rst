@@ -74,11 +74,11 @@ size of the process.
      - not applicable
    * - ``loudness_ecma``
      - 1.59 (723)
-     - 0.64 (14)
+     - 0.64 (18)
      - 0.19 (37)
    * - ``roughness_ecma``
      - 7.3 (2312)
-     - 3.97 (147)
+     - 3.97 (143)
      - 1.45 (217)
    * - ``roughness_dw``, tonal signal
      - 1.62 (26)

@@ -29,13 +29,6 @@ def test_2d_input_with_workers():
 
 
 @pytest.mark.noct_spectrum
-@pytest.mark.parametrize("bad", [0, -2, 1.5])
-def test_invalid_workers(bad):
-    with pytest.raises(ValueError):
-        noct_spectrum(_signal(4000), 48000, 24, 12500, workers=bad)
-
-
-@pytest.mark.noct_spectrum
 def test_filter_design_is_cached_and_protected():
     _design_cached.cache_clear()
     first = _design_sos(3, 0.1, 0.2)

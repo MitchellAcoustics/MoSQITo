@@ -31,10 +31,7 @@ def roughness_dw(signal, fs, overlap=0.5, workers=None):
     overlap : float
         Overlapping coefficient for the time windows of 200ms
     workers : int, optional
-        Number of threads used to process the 200 ms segments in parallel (about
-        10 per second of signal at the default overlap). Default is 1 (no
-        threads).
-        More than the number of cores brings nothing.
+        Number of threads (default 1).
 
     Returns
     -------

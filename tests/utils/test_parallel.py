@@ -10,11 +10,8 @@ from mosqito.sq_metrics import loudness_ecma, roughness_dw, roughness_ecma
 from mosqito.utils._parallel import parallel_map, resolve_workers
 
 
-def test_default_is_one_worker():
+def test_resolve_workers_default_and_integrals():
     assert resolve_workers(None) == 1
-
-
-def test_any_integral_is_accepted():
     assert resolve_workers(2) == 2
     assert resolve_workers(np.int64(3)) == 3
 
@@ -37,7 +34,9 @@ def test_parallel_map_single_worker_uses_no_pool(monkeypatch):
     assert parallel_map(abs, [-1, -2], workers=1) == [1, 2]
 
 
-def test_pool_is_capped_at_number_of_tasks(monkeypatch):
+@pytest.fixture
+def pool_sizes(monkeypatch):
+    """Sizes of the thread pools created while the test runs."""
     sizes = []
     real = concurrent.futures.ThreadPoolExecutor
 
@@ -46,6 +45,11 @@ def test_pool_is_capped_at_number_of_tasks(monkeypatch):
         return real(max_workers, *a, **k)
 
     monkeypatch.setattr(_parallel, "ThreadPoolExecutor", spy)
+    return sizes
+
+
+def test_pool_is_capped_at_number_of_tasks(pool_sizes):
+    sizes = pool_sizes
     parallel_map(abs, [-1, -2, -3], workers=16)
     assert sizes == [3]
 
@@ -71,25 +75,25 @@ def _am_tone(n):
     return 0.05 * (1 + np.sin(2 * np.pi * 70 * t)) * np.sin(2 * np.pi * 1000 * t)
 
 
-@pytest.mark.parametrize(
-    "metric, args",
-    [
-        (noct_spectrum, (_noise(8000), 48000, 24, 12500)),
-        (loudness_ecma, (_noise(8000), 48000)),
-        (roughness_ecma, (_am_tone(24000), 48000)),
-        (roughness_dw, (_noise(24000), 48000)),
-    ],
-    ids=["noct_spectrum", "loudness_ecma", "roughness_ecma", "roughness_dw"],
-)
-def test_metrics_pass_workers_to_the_pool(monkeypatch, metric, args):
-    sizes = []
-    real = concurrent.futures.ThreadPoolExecutor
+METRICS = [
+    (noct_spectrum, (_noise(8000), 48000, 24, 12500)),
+    (loudness_ecma, (_noise(8000), 48000)),
+    (roughness_ecma, (_am_tone(24000), 48000)),
+    (roughness_dw, (_noise(24000), 48000)),
+]
+METRIC_IDS = ["noct_spectrum", "loudness_ecma", "roughness_ecma", "roughness_dw"]
 
-    def spy(max_workers=None, *a, **k):
-        sizes.append(max_workers)
-        return real(max_workers, *a, **k)
 
-    monkeypatch.setattr(_parallel, "ThreadPoolExecutor", spy)
+@pytest.mark.parametrize("workers", [0, -1, 2.5])
+@pytest.mark.parametrize("metric, args", METRICS, ids=METRIC_IDS)
+def test_metrics_reject_invalid_workers(metric, args, workers):
+    with pytest.raises(ValueError):
+        metric(*args, workers=workers)
+
+
+@pytest.mark.parametrize("metric, args", METRICS, ids=METRIC_IDS)
+def test_metrics_pass_workers_to_the_pool(pool_sizes, metric, args):
+    sizes = pool_sizes
     metric(*args)
     assert sizes == []
     metric(*args, workers=3)
