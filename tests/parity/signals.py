@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Deterministic test signals shared by the parity goldens and their tests.
 
-Every signal is a ``(samples, fs)`` pair built from fixed seeds, so the
-generator and the tests always see identical input. Each is at most 1.5 s.
+Every signal is a ``(samples, fs)`` pair and is deterministic (closed form,
+seeded RNG, or a committed wav), so the generator and the tests always see
+identical input. None is longer than 1 s.
 """
 import os
 
@@ -74,7 +75,13 @@ def signals():
 
 
 def kernel_inputs():
-    """Seeded inputs for the kernel-level goldens (core loudness and spectra)."""
+    """Seeded inputs for the kernel-level goldens.
+
+    ``core_loudness`` is 21 bands x 400 frames with every third frame scaled down
+    by 100 so the non-linear decay sees both rises and decays;
+    ``third_octave_levels`` is 28 bands x 300 frames, with the lowest 11 bands
+    capped at 119 dB (the range ``_main_loudness`` accepts).
+    """
     rng = np.random.default_rng(2)
     core = np.abs(rng.standard_normal((21, 400))) * rng.uniform(0, 5, (21, 1))
     core[:, ::3] *= 0.01

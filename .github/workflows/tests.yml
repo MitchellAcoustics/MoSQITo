@@ -21,5 +21,7 @@ jobs:
       - name: Install
         run: |
           pip install -e . pytest pandas openpyxl matplotlib
+      # The parity goldens were made with a specific NumPy/SciPy (tests/parity/data/manifest.json);
+      # a parity failure after a dependency upgrade means "investigate", see tests/parity/tolerances.py.
       - name: Test
         run: pytest tests -q

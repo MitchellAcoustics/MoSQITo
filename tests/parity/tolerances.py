@@ -1,22 +1,29 @@
 # -*- coding: utf-8 -*-
 """Tolerances for the golden-file parity tests.
 
-They are deliberately loose enough to survive ordinary NumPy/SciPy upgrades,
-which change the last digits of FFT and filter results: ``rtol=1e-7`` with an
-absolute floor of ``1e-9 * max|golden|`` (the ``numpy.testing.assert_allclose``
-convention). Tight equivalence between a refactor and its parent commit is
-checked separately by ``strict_compare.py``.
+They are loose enough to absorb the last-digit changes that NumPy/SciPy upgrades
+make to FFT and filter results: ``rtol=1e-7`` with an absolute floor of
+``1e-8 * max|golden|`` (the same inequality as ``numpy.testing.assert_allclose``,
+with ``atol`` scaled to the golden). That is not a promise that every upgrade
+passes: a metric that is numerically unstable can drift far more (``roughness_dw``
+on spectra with empty channels did, until the fix later in this stack), and a
+failure after an upgrade means "investigate", not necessarily "regression".
+Tight equivalence between a refactor and its parent commit is checked
+separately by ``strict_compare.py``.
 
 ISO 532-1 totals are rounded to 0.001 sone (0.01 sone above 16 sone), so a value
-sitting on a rounding boundary may legitimately move by one quantum; those
-totals get one quantum of absolute tolerance.
+sitting on a rounding boundary may legitimately move by one quantum; the totals
+listed in ``ISO_ROUNDED`` get one quantum of absolute tolerance. Outputs derived
+from a rounded total (``sharpness_din_st`` S, ``loudness_zwtv`` N and
+``sharpness_din_tv``) do not: a boundary flip there is expected to fail, and is
+handled by regenerating the goldens in a dedicated change.
 
 ECMA-418-2 specific loudness is ``a' - LTQ(z)`` with ``a'`` clipped at the hearing
 threshold ``LTQ(z)``, i.e. a small difference of two larger numbers. Last-digit
 changes in the band-pass filter output (``lfilter`` on a high-Q cascade, whose
 rounding error scales with the loudest earlier part of the signal, not with the
-current block) reach ``a'`` as a relative error of up to ~4e-7 across NumPy 2.2 /
-SciPy 1.15 vs NumPy 2.4 / SciPy 1.17, and show up in the difference as an
+current block) reach ``a'`` as a relative error of up to ~4e-7 (observed once, moving from NumPy 2.2 /
+SciPy 1.15 to NumPy 2.4 / SciPy 1.17), and show up in the difference as an
 *absolute* error of that fraction of ``a'``, however small the result. So for
 ``loudness_ecma`` specific loudness (and its band sum, ``N_time``) the absolute
 floor is ``ECMA_A_RTOL * LTQ(z)``, i.e. a relative tolerance on ``a'`` of 1e-6
@@ -28,9 +35,9 @@ import numpy as np
 from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
 
 RTOL = 1e-7
-ATOL_SCALE = 1e-9
+ATOL_SCALE = 1e-8
 
-# Keys (``<metric>`` / ``<signal>__<output>`` suffix) holding ISO-rounded totals.
+# (metric, output name) pairs whose values are ISO-rounded totals.
 ISO_ROUNDED = {
     ("loudness_zwst", "N"),
     ("loudness_zwst_perseg", "N"),
@@ -59,7 +66,8 @@ def iso_quantum(values):
 
 def allclose_kwargs(metric, key, golden):
     """Return ``(rtol, atol)`` for comparing ``golden`` of ``metric``/``key``."""
-    atol = ATOL_SCALE * float(np.max(np.abs(golden))) if golden.size else 0.0
+    finite = np.abs(golden[np.isfinite(golden)])  # one inf/NaN must not make atol inf/NaN
+    atol = ATOL_SCALE * float(finite.max()) if finite.size else 0.0
     if metric == "loudness_ecma":
         floor = _ecma_floor(key, golden)
         if floor is not None:

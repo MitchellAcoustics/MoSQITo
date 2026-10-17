@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Compute (and optionally store) the reference outputs used by the parity tests.
+"""Compute and store the reference outputs used by the parity tests (``compute_all`` only computes).
 
 Usage, from the repository root::
 
-    python tests/parity/generate_goldens.py            # rewrite tests/parity/data
-    python tests/parity/generate_goldens.py --out DIR  # write elsewhere (strict_compare)
+    uv run python tests/parity/generate_goldens.py            # rewrite tests/parity/data
+    uv run python tests/parity/generate_goldens.py --out DIR  # write elsewhere (strict_compare)
 
-Regenerate the committed goldens only in a dedicated, explained change: the
-manifest records the NumPy/SciPy versions they were produced with.
+Regenerate the committed goldens only in a dedicated, explained change that
+commits ``data/*.npz`` and ``manifest.json`` together: the manifest records the
+NumPy/SciPy versions they were produced with.
 """
 import argparse
 import json
@@ -30,7 +31,7 @@ DATA_DIR = os.path.join(HERE, "data")
 
 
 def _flat(prefix, values):
-    """Map a metric's tuple of outputs to ``{prefix__name: ndarray}``."""
+    """Map a metric's dict of outputs to ``{prefix__name: ndarray}``."""
     return {"%s__%s" % (prefix, k): np.asarray(v, dtype=float) for k, v in values.items()}
 
 
@@ -73,16 +74,17 @@ def _kernels():
 
 def compute_all():
     """Return ``{metric: {key: ndarray}}`` for every metric and kernel."""
-    warnings.simplefilter("ignore")
     result = {}
     test_signals = sig_factory.signals()
-    for name, (fn, outputs) in _metrics().items():
-        entry = {}
-        for sname, (x, fs) in test_signals.items():
-            entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
-        result[name] = entry
-    for name, values in _kernels().items():
-        result["kernel_" + name] = _flat("seeded", values)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for name, (fn, outputs) in _metrics().items():
+            entry = {}
+            for sname, (x, fs) in test_signals.items():
+                entry.update(_flat(sname, dict(zip(outputs, fn(x.copy(), fs), strict=True))))
+            result[name] = entry
+        for name, values in _kernels().items():
+            result["kernel_" + name] = _flat("seeded", values)
     return result
 
 
