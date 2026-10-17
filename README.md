@@ -14,7 +14,7 @@ It is written in Python, one of the most popular free programming language in th
 pip install mosqito
 ```
 
-Optionally, `pip install "mosqito[performance]"` installs [numba](https://numba.pydata.org), which compiles the loops of the time-varying Zwicker loudness for a large speed-up with identical results.
+Optionally, `pip install "mosqito[performance]"` installs [numba](https://numba.pydata.org), which compiles the loops of the time-varying Zwicker loudness for a large speed-up. Totals and specific loudness are unchanged to within 1e-12 (tested against the ISO 532-1 reference signals).
 
 ## Documentation
 

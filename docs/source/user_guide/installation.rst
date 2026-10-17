@@ -25,6 +25,6 @@ if you install the ``performance`` extra: ::
 
   pip install "mosqito[performance]"
 
-Nothing else changes: results are identical, and without numba the same
-computation simply takes longer. See :doc:`performance` for the measured gain and
+Nothing else changes: total and specific loudness agree to within 1e-12, and
+without numba the same computation simply takes longer. See :doc:`performance` for the measured gain and
 how to turn it off.

@@ -108,15 +108,22 @@ be vectorised, because each step depends on the previous one. Installing the
 
     pip install "mosqito[performance]"
 
-Results are identical to the plain Python ones (the compiled and plain versions
-are tested to give exactly the same numbers), and nothing else needs to change.
+Results are unchanged: total and specific loudness are the same to within 1e-12
+for everything these metrics compute (tested against the ISO 532-1 reference
+signals), and nothing else needs to change.
 
 * numba is only imported, and the loops only compiled, the first time a metric
   that uses them is computed. ``import mosqito`` is not slower.
-* The first call compiles: about 1 s the very first time. The compiled code is
-  cached on disk (in ``__pycache__`` next to the module, or in the directory given
-  by the ``NUMBA_CACHE_DIR`` environment variable if that is not writable), so
-  later Python sessions only pay a few tens of milliseconds to load it.
+* The first call compiles the loops. The compiled code is cached on disk (in
+  ``__pycache__`` next to the module, or in the directory given by the
+  ``NUMBA_CACHE_DIR`` environment variable when it is set), so later Python
+  sessions load it instead of compiling. For a first ``loudness_zwtv`` call on
+  1 s of signal in a fresh process, we measured about 0.5 s with an empty cache
+  and about 0.18 s with a warm cache, which is no faster than plain Python:
+  numba pays off on longer signals or repeated calls.
+* A single stationary call does not benefit. ``loudness_zwst`` on one spectrum
+  uses the plain Python routine, so it neither imports numba nor compiles
+  (about 0.03 s for a first call).
 * Set ``MOSQITO_DISABLE_NUMBA=1`` to turn it off. If numba is not installed or does
   not work, MoSQITo silently uses plain Python.
 

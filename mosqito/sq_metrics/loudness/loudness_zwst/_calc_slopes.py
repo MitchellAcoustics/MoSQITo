@@ -3,7 +3,7 @@
 # Standard library imports
 from math import floor as _floor
 
-from numpy import rint, asarray, ascontiguousarray, empty, int64, array, append, tile, ones, copy, int32, zeros, arange, roll, logical_not, divide, maximum, minimum, multiply, logical_and, logical_xor, floor, round
+from numpy import isfinite, rint, asarray, ascontiguousarray, empty, int64, array, append, tile, ones, copy, int32, zeros, arange, roll, logical_not, divide, maximum, minimum, multiply, logical_and, logical_xor, floor, round
 
 from mosqito.sq_metrics.loudness.loudness_zwst._get_rns_index import _get_rns_index
 from mosqito.utils import _jit
@@ -526,8 +526,12 @@ def _calc_slopes(nm):
     """Specific loudness pattern and total loudness from the core loudness.
 
     With numba installed (pip install "mosqito[performance]") a compiled
-    frame-by-frame walk is used, otherwise the vectorised routine. Both give the
-    same totals, and specific loudness identical to within 1e-12.
+    frame-by-frame walk is used for several frames, otherwise the vectorised
+    routine. The vectorised routine is also used for a single frame (compiling
+    would cost more than it saves) and when the core loudness contains a
+    non-finite value (it then returns NaN for that frame). The totals are the
+    same and the specific loudness agrees to within 1e-12 for the core loudness
+    produced by _main_loudness.
 
     Parameters
     ----------
@@ -545,15 +549,12 @@ def _calc_slopes(nm):
     if not _jit.HAS_NUMBA:
         return _calc_slopes_vectorised(nm)
     nm = asarray(nm, dtype=float)
-    one_frame = nm.ndim == 1
-    if one_frame:
-        nm = nm[:, None]
+    if nm.ndim == 1 or nm.shape[1] == 1 or not isfinite(nm).all():
+        return _calc_slopes_vectorised(nm)
     frames = ascontiguousarray(nm.T)
     N = empty(frames.shape[0])
     spec = empty((frames.shape[0], _SPEC_LENGTH))
     _calc_slopes_frames(frames, N, spec, _ZUP, _ZUP_EA, _RNS, _RNS_R, _USL)
     if not _jit.HAS_NUMBA:  # numba turned out not to work: use the vectorised routine
-        return _calc_slopes_vectorised(nm[:, 0] if one_frame else nm)
-    if one_frame:
-        return N[0], spec[0]
+        return _calc_slopes_vectorised(nm)
     return N, spec.T
