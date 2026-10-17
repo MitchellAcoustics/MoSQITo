@@ -3,7 +3,9 @@
 
 # Standard library imports
 from numpy import multiply, sqrt, sum, abs
-from scipy.signal import butter, sosfreqz
+from scipy.signal import sosfreqz
+
+from mosqito.sound_level_meter.noct_spectrum._bandpass_design import _design_sos
 
 def _n_oct_freq_filter(spectrum, fs, fc, alpha, n=3):  
     """ n-th octave filtering in frequency domain
@@ -36,7 +38,7 @@ def _n_oct_freq_filter(spectrum, fs, fc, alpha, n=3):
     w2 = fc / (fs  / 2) * alpha
 
     # Define filter coefficient
-    sos = butter(n, [w1, w2], "bandpass", analog=False, output ='sos')  
+    sos = _design_sos(n, w1, w2)  
     # Get FRF and apply it
     w, h = sosfreqz(sos, worN=len(spectrum))
     spec_filt = multiply(h, spectrum.T).T

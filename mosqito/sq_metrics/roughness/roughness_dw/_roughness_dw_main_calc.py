@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 # Standard imports
-from numpy import concatenate, zeros, arange, where, interp, mean, real, corrcoef, power, sqrt, abs, empty
+from numpy import (
+    concatenate, zeros, arange, where, interp, mean, real, corrcoef, power, sqrt, abs, empty,
+    floor, ceil, minimum, take_along_axis, broadcast_to,
+)
 from numpy.fft import fft, ifft
-import math
 
 # Local imports
 from mosqito.utils.LTQ import LTQ
@@ -68,18 +70,13 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # --------------------------------- stage 1 ------------------------------------
     # ----------------Creation of the specific excitations functions----------------
 
+    level = spec_dB[audible_index]
+    bark = bark_axis[audible_index]
     # Terhardt's slopes definition
     # lower slope [dB/Bark]
     s1 = -27
-    s2 = zeros((n_aud))
     # upper slope [dB/Bark]
-    for k in arange(0, n_aud, 1):
-        s2[k] = min(
-            -24
-            - (230 / freq_axis[audible_index[k]])
-            + (0.2 * spec_dB[audible_index[k]]),
-            0,
-        )
+    s2 = minimum(-24 - (230 / freq_axis[audible_index]) + (0.2 * level), 0)
 
     # The excitation pattern are calculated for 47 overlapping 1-bark-wide channels
     n_channel = 47
@@ -90,78 +87,71 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # Minimum excitation level
     minExcitDB = interp(zb, nZ, threshold)
 
-    ch_low = zeros((n_aud))
-    ch_high = zeros((n_aud))
-    for i in arange(0, n_aud):
-        # Lower limit of the channel corresponding to each component
-        ch_low[i] = math.floor(2 * bark_axis[audible_index[i]]) - 1
-        # Higher limit
-        ch_high[i] = math.ceil(2 * bark_axis[audible_index[i]]) - 1
+    # Lower and higher channel limits of each component
+    ch_low = floor(2 * bark) - 1
+    ch_high = ceil(2 * bark) - 1
+    # A component above the last channel raised IndexError in the former loops;
+    # keep that behaviour.
+    if n_aud and ch_low.max() >= n_channel:
+        raise IndexError(
+            "index %d is out of bounds for axis 0 with size %d" % (n_channel, n_channel)
+        )
 
-    # Creation of the excitation pattern
+    # Excitation pattern, shape (n_aud, n_channel): a component excites the
+    # channels below it along the lower slope and those above along the upper one
+    channel = arange(n_channel)[None, :]
+    centre = (channel + 1) * 0.5
+    sl_low = s1 * (bark[:, None] - centre) + level[:, None]
+    sl_high = s2[:, None] * (centre - bark[:, None]) + level[:, None]
     slopes = zeros((n_aud, n_channel))
-    for k in arange(0, n_aud):
-        levDB = spec_dB[audible_index[k]]
-        b = bark_axis[audible_index[k]]
-        for j in arange(0, int(ch_low[k] + 1)):
-            sl = (s1 * (b - ((j + 1) * 0.5))) + levDB
-            if sl > minExcitDB[j]:
-                slopes[k, j] = db2amp(sl, ref=0.00002)
-        for j in arange(int(ch_high[k]), n_channel):
-            sl = (s2[k] * (((j + 1) * 0.5) - b)) + levDB
-            if sl > minExcitDB[j]:
-                slopes[k, j] = db2amp(sl, ref=0.00002)
+    below = (channel <= ch_low[:, None]) & (sl_low > minExcitDB[None, :])
+    slopes[below] = db2amp(sl_low[below], ref=0.00002)
+    above = (channel >= ch_high[:, None]) & (sl_high > minExcitDB[None, :])
+    slopes[above] = db2amp(sl_high[above], ref=0.00002)
 
-    # Initialization
-    hBP = zeros((n_channel, n))
-    mod_depth = zeros((n_channel))
+    # Amplitude of each component in each channel, shape (n_channel, n_aud)
+    i = arange(n_channel)[:, None]
+    from_above = take_along_axis(
+        slopes.T, broadcast_to(minimum(i + 1, n_channel - 1), (n_channel, n_aud)), axis=0
+    )
+    from_below = take_along_axis(slopes.T, broadcast_to(i - 1, (n_channel, n_aud)), axis=0)
+    audible_module = module[audible_index][None, :]
+    ampl = where(
+        (ch_low[None, :] == i) | (ch_high[None, :] == i),
+        1.0,
+        where(ch_high[None, :] > i, from_above / audible_module, from_below / audible_module),
+    )
 
-    # Definition of the excitation amplitude
-    for i in arange(0, n_channel, 1):
-        exc = zeros((n), dtype=complex)
-        for j in arange(0, n_aud, 1):
-            ind = audible_index[j]
-            # the component belongs to the bark window
-            if ch_low[j] == i:
-                ampl = 1
-            elif ch_high[j] == i:
-                ampl = 1
-            # the component is higher than the bark window
-            elif ch_high[j] > i:
-                ampl = slopes[j, i + 1] / module[ind]
-            # the component is lower than the considered window
-            else:
-                ampl = slopes[j, i - 1] / module[ind]
+    # Reconstruction of the spectrum of each channel
+    exc = zeros((n_channel, n), dtype=complex)
+    exc[:, audible_index] = ampl * spec[audible_index][None, :]
 
-            # reconstruction of the spec
-            exc[ind] = ampl * spec[ind]
+    # The temporal specific excitation functions are obtained by IFFT
+    temporal_excitation = abs(n * real(ifft(exc, axis=1)))
 
-        # The temporal specific excitation functions are obtained by IFFT
-        temporal_excitation = abs(n * real(ifft(exc)))
-        # ------------------------------- stage 2 --------------------------------------
-        # ---------------------modulation depth calculation-----------------------------
+    # ------------------------------- stage 2 --------------------------------------
+    # ---------------------modulation depth calculation-----------------------------
 
-        # The fluctuations of the envelope are contained in the low frequency part
-        # of the spec of specific excitations in absolute value
-        h0 = mean(temporal_excitation)
-        envelope_spec = fft(temporal_excitation - h0)
+    # The fluctuations of the envelope are contained in the low frequency part
+    # of the spec of specific excitations in absolute value
+    h0 = mean(temporal_excitation, axis=1)
+    envelope_spec = fft(temporal_excitation - h0[:, None], axis=1)
 
-        # This spec is weighted to model the low-frequency  bandpass
-        # characteristic of the roughness on modulation frequency
-        envelope_spec = envelope_spec * hWeight[i, :]
-        # The time functions of the bandpass filtered envelopes hBPi(t)
-        # are calculated via inverse Fourier transform :
-        hBP[i, :] = 2 * real(ifft(envelope_spec))
+    # This spec is weighted to model the low-frequency bandpass
+    # characteristic of the roughness on modulation frequency
+    envelope_spec = envelope_spec * hWeight
 
-        # Modulation depth estimation is given by envelope RMS values
-        # and excitation functions time average :
-        hBPrms = sqrt(mean(power(hBP[i, :], 2)))
-        if h0 > 0:
-            mod_depth[i] = hBPrms / h0
-            if mod_depth[i] > 1:
-                mod_depth[i] = 1
-        else:
-            mod_depth[i] = 0
+    # The time functions of the bandpass filtered envelopes hBPi(t)
+    # are calculated via inverse Fourier transform :
+    hBP = 2 * real(ifft(envelope_spec, axis=1))
+
+    # Modulation depth estimation is given by envelope RMS values
+    # and excitation functions time average :
+    hBPrms = sqrt(mean(power(hBP, 2), axis=1))
+    positive = h0 > 0
+    mod_depth = zeros(n_channel)
+    mod_depth[positive] = minimum(hBPrms[positive] / h0[positive], 1.0)
+
     # ------------------------------- stage 3 --------------------------------------
     # ----------------roughness calculation with cross correlation------------------
 

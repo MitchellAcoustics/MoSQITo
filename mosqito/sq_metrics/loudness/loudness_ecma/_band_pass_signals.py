@@ -43,37 +43,49 @@ def _band_pass_signals(sig, sb, sh):
     elif len(sh) != 53:
         raise ValueError("ERROR: len(sh) shall be either 1 or 53")
 
-    # OUTER AND MIDDLE EAR FILTERING (5.1.2)
-
-    sos_ear = _ear_filter_design()
-    signal_filtered = sp_signal.sosfilt(sos_ear, sig, axis=0)
+    signal_filtered = _ear_filtering(sig)
 
     # AUDITORY FILTERING BANK (5.1.3)
 
-    # Order of the Outer and Middle ear filter
-    filter_order_k = 5
-    # Sampling frequency
-    fs = 48000.00
     # Auditory filters centre frequencies
     centre_freq = _auditory_filters_centre_freq()
 
     block_bandpass_signals = []
     for band_number in range(53):
-        bm_mod, am_mod = _gammatone(centre_freq[band_number], k=filter_order_k, fs=fs)
-
-        band_pass_signal = (
-            2.0
-            * (
-                sp_signal.lfilter(
-                    bm_mod,
-                    am_mod,
-                    signal_filtered,
-                    axis=0,
-                )
-            ).real
+        block_bandpass_signals.append(
+            _band_pass_signal(signal_filtered, centre_freq[band_number])
         )
-        block_bandpass_signals.append(band_pass_signal)
     return block_bandpass_signals
+
+
+def _ear_filtering(sig):
+    """Outer and middle ear filtering (5.1.2)"""
+    sos_ear = _ear_filter_design()
+    return sp_signal.sosfilt(sos_ear, sig, axis=0)
+
+
+def _band_pass_signal(signal_filtered, centre_freq):
+    """Band-pass signal of one critical band (5.1.3), from the ear-filtered
+    signal and the centre frequency of the band."""
+    # Order of the Outer and Middle ear filter
+    filter_order_k = 5
+    # Sampling frequency
+    fs = 48000.00
+    bm_mod, am_mod = _gammatone(centre_freq, k=filter_order_k, fs=fs)
+
+    band_pass_signal = (
+        2.0
+        * (
+            sp_signal.lfilter(
+                bm_mod,
+                am_mod,
+                signal_filtered,
+                axis=0,
+            )
+        ).real
+    )
+    return band_pass_signal
+
 
 def _rectified_band_pass_signals(sig, sb, sh):
     """Compute the band-pass signals as per Clause 5.1.2 to 5.1.5 of

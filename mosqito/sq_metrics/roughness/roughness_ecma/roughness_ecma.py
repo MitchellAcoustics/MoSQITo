@@ -4,10 +4,11 @@ from scipy.signal import hilbert, resample, decimate
 
 # Project Imports
 from mosqito.sq_metrics.loudness.loudness_ecma._preprocessing import _preprocessing
-from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import _band_pass_signals
-from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import _ecma_time_segmentation
+from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import _band_pass_signal, _ear_filtering
+from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import _segment_band
 from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import _auditory_filters_centre_freq
-from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import _loudness_from_bandpass
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import _band_specific_loudness
+from mosqito.utils._parallel import parallel_map, resolve_workers
 
 from mosqito.sq_metrics.roughness.roughness_ecma._weighting import _f_max, _r_max, _Q2_high, _Q2_low, _high_mod_rate_weighting, _low_mod_rate_weighting
 from mosqito.sq_metrics.roughness.roughness_ecma._estimate_fund_mod_rate import _estimate_fund_mod_rate
@@ -18,7 +19,7 @@ from mosqito.sq_metrics.roughness.roughness_ecma._interpolation_50 import _inter
 from mosqito.sq_metrics.roughness.roughness_ecma._non_linear_transform import _non_linear_transform
 from mosqito.sq_metrics.roughness.roughness_ecma._lowpass_filter import _lowpass_filter
 
-def roughness_ecma(signal, fs):
+def roughness_ecma(signal, fs, workers=None):
     """Calculation of the specific and total roughness according to ECMA-418-2
     (2nd Ed, 2022).
 
@@ -31,6 +32,8 @@ def roughness_ecma(signal, fs):
         Signal time values [Pa]. The sampling frequency of the signal must be 48000 Hz.
     fs: int
         Sampling frequency [Hz].
+    workers: int, optional
+        Number of threads (default 1).
 
     Returns
     -------
@@ -91,6 +94,8 @@ def roughness_ecma(signal, fs):
         >>> plt.title("Roughness = " + f"{R:.2f}" + " [Asper]")
     """
     
+    workers = resolve_workers(workers)
+
     # Check on the sampling frequency
     if fs != 48000:
         print(
@@ -110,28 +115,36 @@ def roughness_ecma(signal, fs):
         
     # Preprocessing 
     signal, n_new = _preprocessing(signal, sb, sh)
-    # Gammatone bandpass filtering
-    bandpass_signals = _band_pass_signals(signal, sb, sh)
-    # Time segmentation
-    block_array, time_array = _ecma_time_segmentation(bandpass_signals, sb, sh, n_new)
-    time_axis = np.array(time_array)[0]
-    block_array = np.asarray(block_array)
-    
-    # LOUDNESS COMPUTATION
-    N_specific, bark_axis = _loudness_from_bandpass(block_array)
-    N_specific = np.array(N_specific).T
-    L = N_specific.shape[0]
-    
-    # ENVELOPPE CALCULATION AND DOWNSAMPLING (7.1.2)
-    envelopes = abs(hilbert(block_array))
-    # Transposition to fit with the standard writing
-    envelopes = np.transpose(np.asarray(envelopes),(1,0,2)) 
-    
+    # Outer and middle ear filtering
+    signal_filtered = _ear_filtering(signal)
+
     # Downsampling to 1500 Hz
     sbb = 512 
     downsampling_factor = 32
-    envelopes_downsampled_ = decimate(envelopes, downsampling_factor//4, axis=2)
-    envelopes_downsampled = decimate(envelopes_downsampled_, 4, axis=2)
+
+    # Each band is filtered, segmented into blocks, reduced to its specific
+    # loudness and to its downsampled envelopes on its own, so that the blocks of
+    # all 53 bands are never held in memory at once.
+    def band_results(band_number):
+        # Gammatone bandpass filtering
+        band_pass_signal = _band_pass_signal(signal_filtered, center_freq[band_number])
+        # Time segmentation
+        blocks, time = _segment_band(band_pass_signal, sb, sh, 0, n_new)
+        # LOUDNESS COMPUTATION
+        n_specific = _band_specific_loudness(blocks, band_number)
+        # ENVELOPPE CALCULATION AND DOWNSAMPLING (7.1.2)
+        envelopes = abs(hilbert(blocks))
+        envelopes_downsampled_ = decimate(envelopes, downsampling_factor//4, axis=1)
+        envelopes_downsampled = decimate(envelopes_downsampled_, 4, axis=1)
+        return time, n_specific, envelopes_downsampled
+
+    results = parallel_map(band_results, range(CBF), workers)
+    time_axis = results[0][0]
+    N_specific = np.array([r[1] for r in results]).T
+    bark_axis = np.linspace(0.5, 26.5, num=53, endpoint=True)
+    L = N_specific.shape[0]
+    # Transposition to fit with the standard writing
+    envelopes_downsampled = np.stack([r[2] for r in results], axis=1)
 
     # CALCULATION OF SCALED POWER SPECTRUM (7.1.3)
     

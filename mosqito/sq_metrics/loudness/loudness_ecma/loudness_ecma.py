@@ -1,28 +1,31 @@
 # -*- coding: utf-8 -*-
 
-from numpy import clip, sqrt, mean, array, linspace, sum, log10
+from numpy import mean, linspace, sum, log10, ones
 
 # Project Imports
+from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import (
+    _auditory_filters_centre_freq,
+)
 from mosqito.sq_metrics.loudness.loudness_ecma._band_pass_signals import (
-    _band_pass_signals,
+    _band_pass_signal,
+    _ear_filtering,
 )
 
 from mosqito.sq_metrics.loudness.loudness_ecma._ecma_time_segmentation import (
-    _ecma_time_segmentation,
+    _segment_band,
 )
 
-from mosqito.sq_metrics.loudness.loudness_ecma._nonlinearity import _nonlinearity
+from mosqito.sq_metrics.loudness.loudness_ecma._loudness_from_bandpass import (
+    _band_specific_loudness,
+)
 
 from mosqito.sq_metrics.loudness.loudness_ecma._preprocessing import (
     _preprocessing,
 )
-
-# Data import
-# Threshold in quiet
-from mosqito.sq_metrics.loudness.loudness_ecma._loudness_ecma_data import ltq_z
+from mosqito.utils._parallel import parallel_map, resolve_workers
 
 
-def loudness_ecma(signal, fs, sb=2048, sh=1024):
+def loudness_ecma(signal, fs, sb=2048, sh=1024, workers=None):
     """Calculation of the specific and total loudness according to ECMA-418-2
     (2nd Ed, 2022), Section 5.
 
@@ -37,6 +40,8 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024):
         Block size.
     sh: int or list of int
         Hop size.
+    workers: int, optional
+        Number of threads (default 1).
 
     Returns
     -------
@@ -90,6 +95,7 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024):
        >>> plt.xlabel("Time [s]")
        >>> plt.ylabel("Loudness [Sone]")
     """
+    workers = resolve_workers(workers)
     if fs != 48000:
         print(
             "[Warning] Signal resampled to 48 kHz fulfill the standard requirements and allow calculation."
@@ -102,31 +108,38 @@ def loudness_ecma(signal, fs, sb=2048, sh=1024):
     # Windowing and zero-padding (5.1.2)
     signal, n_new = _preprocessing(signal, sb, sh)
 
-    # Computaton of band-pass signals (5.1.3 to 5.1.4)
-    bandpass_signals = _band_pass_signals(signal, sb, sh)
+    if isinstance(sb, int):
+        sb = sb * ones(53, dtype=int)
+    elif len(sb) != 53:
+        raise ValueError("ERROR: len(sb) shall be either 1 or 53")
+    if isinstance(sh, int):
+        sh = sh * ones(53, dtype=int)
+    elif len(sh) != 53:
+        raise ValueError("ERROR: len(sh) shall be either 1 or 53")
+    # Eq. (19)
+    i_start = sb[0] - sb
 
-    # 5.1.5 Segmentation into blocks
-    block_array, time_array = _ecma_time_segmentation(bandpass_signals, sb, sh, n_new)
-    
-    # Segmentation into blocks (5.1.5)
-    #block_array, time_array = _ecma_time_segmentation(bandpass_signals, sb, sh, n_new)
+    # Outer and middle ear filtering (5.1.2) and centre frequencies, once for all bands
+    signal_filtered = _ear_filtering(signal)
+    centre_freq = _auditory_filters_centre_freq()
 
-    # Rectification (5.1.6)
-    block_array_rect = clip(block_array, a_min=0.00, a_max=None)
-
-    # Calculation of specific loudness (5.1.7 to 5.1.9)
-    N_spec = []
-    for band_number in range(53):
-        # root mean square values (eq. 22)
-        rms_block_value = sqrt(
-            2 * mean(array(block_array_rect[band_number]) ** 2, axis=1)
+    # Each band is filtered (5.1.3 to 5.1.4), segmented into blocks (5.1.5) and
+    # reduced to its specific loudness (5.1.6 to 5.1.9) on its own, so that the
+    # blocks of all 53 bands are never held in memory at once.
+    def band_loudness(band_number):
+        band_pass_signal = _band_pass_signal(signal_filtered, centre_freq[band_number])
+        blocks, time = _segment_band(
+            band_pass_signal,
+            sb[band_number],
+            sh[band_number],
+            i_start[band_number],
+            n_new,
         )
-        # non-linear transformation of sound pressure to specific loudness
-        a_prime = _nonlinearity(rms_block_value)
-        # specific loudness considering the lower threshold of hearing.
-        a_prime[a_prime < ltq_z[band_number]] = ltq_z[band_number]
-        N_prime = a_prime - ltq_z[band_number]
-        N_spec.append(N_prime)
+        return _band_specific_loudness(blocks, band_number), time
+
+    results = parallel_map(band_loudness, range(53), workers)
+    N_spec = [r[0] for r in results]
+    time_array = [r[1] for r in results]
 
     # Time dependent values (eq. 116)
     delta_z = 0.5
