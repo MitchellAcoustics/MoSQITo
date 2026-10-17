@@ -166,11 +166,12 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # ----------------roughness calculation with cross correlation------------------
 
     # Crosscorrelation coefficients between the envelopes of the channels
-    # i and i+2 with dz= 1 bark
+    # i and i+2 with dz= 1 bark. Channels without modulation hold only rounding
+    # noise (modulation depth of order 1e-16) and are left out.
     ki = zeros((47))
 
     for i in range(0, 45):
-        if hBP[i].all() != 0 and hBP[i + 2].all() != 0:
+        if mod_depth[i] > 1e-10 and mod_depth[i + 2] > 1e-10:
             ki[i] = corrcoef(hBP[i, :], hBP[i + 2, :])[0, 1]
 
     # Specific roughness calculation with gzi the modulation depth weighting

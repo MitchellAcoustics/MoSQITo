@@ -38,7 +38,6 @@ def _noisy(real_fft, rng):
 
 
 @pytest.mark.roughness_dw
-@pytest.mark.xfail(strict=True, reason="fixed in the next commit")
 @pytest.mark.parametrize("seed", range(3))
 def test_roughness_ignores_rounding_noise_channels(monkeypatch, seed):
     reference = roughness_dw(_two_tones(), FS)[0]
@@ -49,7 +48,6 @@ def test_roughness_ignores_rounding_noise_channels(monkeypatch, seed):
 
 
 @pytest.mark.roughness_dw
-@pytest.mark.xfail(strict=True, reason="fixed in the next commit")
 @pytest.mark.parametrize("amplitude", [0.003, 0.03, 0.3])
 def test_roughness_dw_two_tones_is_the_same_in_every_block(amplitude):
     # every 200 ms block holds the same periodic content, so the roughness must
@@ -60,7 +58,6 @@ def test_roughness_dw_two_tones_is_the_same_in_every_block(amplitude):
 
 
 @pytest.mark.roughness_dw
-@pytest.mark.xfail(strict=True, reason="fixed in the next commit")
 def test_roughness_dw_two_tones_value():
     # 0.14502 before the fix; a floor that dropped real channels would move it too
     assert roughness_dw(_two_tones(), FS)[0][0] == pytest.approx(0.1449049, rel=1e-6)
