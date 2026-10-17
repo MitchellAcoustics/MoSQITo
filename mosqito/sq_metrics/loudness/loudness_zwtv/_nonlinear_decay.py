@@ -35,12 +35,9 @@ def _nl_coefficients(sample_rate=2000, nl_iter=24):
 def _nl_kernel(ui, B, out, nl_iter):
     """Sequential recurrence of the nonlinear decay for every band.
 
-    Written with scalar loops and chained indexing only, so that it runs
-    unchanged as plain Python on nested lists (where it is several times faster
-    than the equivalent numpy mask operations: for 21 bands the cost of a numpy
-    call per step is far larger than the arithmetic) or compiled by a JIT on
-    arrays. Plain-Python callers must pass lists, not arrays: indexing an array
-    returns numpy scalars, which are several times slower than floats.
+    Written with scalar loops and chained indexing only. It is called with
+    nested lists, because indexing a numpy array returns numpy scalars, which
+    are slower than floats.
 
     Parameters
     ----------

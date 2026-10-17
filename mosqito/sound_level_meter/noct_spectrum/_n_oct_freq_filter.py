@@ -38,7 +38,7 @@ def _n_oct_freq_filter(spectrum, fs, fc, alpha, n=3):
     w2 = fc / (fs  / 2) * alpha
 
     # Define filter coefficient
-    sos = _design_sos(int(n), w1, w2)  
+    sos = _design_sos(n, w1, w2)  
     # Get FRF and apply it
     w, h = sosfreqz(sos, worN=len(spectrum))
     spec_filt = multiply(h, spectrum.T).T

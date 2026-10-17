@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
 """Per-band processing shared by loudness_ecma and roughness_ecma.
 
-The reference implementation filtered all 53 bands, gathered every band into
-one (53, blocks, block size) array, and only then processed it. Blocks overlap
-(by 50 % for loudness, 75 % for roughness), so that array holds every sample
-two to four times over and reaches gigabytes for a 20 s signal. Here each band
-is filtered, cut into blocks and reduced on its own, which gives the same numbers
-with a small fraction of the memory, and makes the bands independent of each
-other so that they can be processed on several threads.
+Each band is filtered, cut into blocks and reduced to its specific loudness on
+its own, instead of gathering all 53 bands into one (53, blocks, block size)
+array first. The numbers are the same; the memory is a small fraction, and the
+bands are independent of each other so they can be processed on several threads.
+``_band_pass_signals``, ``_ecma_time_segmentation`` and ``_loudness_from_bandpass``
+are no longer used by the library; they are kept, and the tests compare against them.
 """
-import numbers
 
-from numpy import arange, ceil, clip, int32, linspace, mean, sqrt
+from numpy import arange, ceil, clip, int32, linspace, mean, ones, sqrt
 from scipy.signal import lfilter, sosfilt
 
 from mosqito.sq_metrics.loudness.loudness_ecma._auditory_filters_centre_freq import (
@@ -26,22 +24,24 @@ FS = 48000  # ECMA-418-2 is defined at 48 kHz
 N_BANDS = 53
 
 
-def check_block_sizes(sb, sh):
-    """Block and hop sizes must be integers (per-band lists were never supported)."""
-    for name, value in (("sb", sb), ("sh", sh)):
-        if isinstance(value, bool) or not isinstance(value, numbers.Integral) or value < 1:
-            raise ValueError("%s must be a positive integer, got %r" % (name, value))
+def per_band(size, name):
+    """Block or hop size as an array of 53 values, one per band."""
+    if isinstance(size, int):
+        return size * ones(N_BANDS, dtype=int)
+    if len(size) != N_BANDS:
+        raise ValueError("ERROR: len(%s) shall be either 1 or 53" % name)
+    return size
 
 
-def ecma_block_index(n_new, sb, sh):
+def ecma_block_index(n_new, sb, sh, i_start=0):
     """Sample indices of every block, shape (n_blocks, sb) (ECMA-418-2 eq. 18-20).
 
     The index is ``linspace(start, start + sb, sb)`` truncated to integers, as in
-    the standard's reference code: each block holds ``sb - 1`` consecutive samples
-    followed by the one at ``start + sb``. The same indices apply to every band.
+    MoSQITo's ``_ecma_time_segmentation``, which this reproduces: each block holds
+    ``sb - 1`` consecutive samples followed by the one at ``start + sb``.
     """
-    starts = arange(int(ceil((n_new + sh) / sh) - 1))
-    return linspace(starts * sh, starts * sh + sb, sb).astype(int32).T
+    starts = arange(int(ceil((n_new + sh) / sh) - 1)) * sh + i_start
+    return linspace(starts, starts + sb, sb).astype(int32).T
 
 
 def ecma_time_axis(n_samples, index):

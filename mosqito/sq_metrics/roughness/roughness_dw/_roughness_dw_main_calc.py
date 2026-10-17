@@ -2,11 +2,10 @@
 
 # Standard imports
 from numpy import (
-    concatenate, zeros, arange, where, interp, mean, real, power, sqrt, abs, empty,
-    floor, ceil, minimum, take_along_axis, broadcast_to, errstate,
+    concatenate, zeros, arange, where, interp, mean, real, corrcoef, power, sqrt, abs, empty,
+    floor, ceil, minimum, take_along_axis, broadcast_to,
 )
 from numpy.fft import fft, ifft
-import math
 
 # Local imports
 from mosqito.utils.LTQ import LTQ
@@ -42,10 +41,6 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     zi : numpy.ndarray
         Channel centres in bark.
 
-    Notes
-    -----
-    The 47 channels are processed together as arrays (one batched FFT for all of
-    them) instead of one channel and one spectral line at a time.
     """
     if len(spec) != len(freq_axis):
         raise ValueError(
@@ -54,13 +49,12 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
 
     # convert spectrum to 2-sided
     spec = concatenate((spec, spec[len(spec)::-1]))
-    n = len(spec)
 
+    n = len(spec)
     # Frequency axis in Bark
     bark_axis = freq2bark(freq_axis)
-
     # Highest frequency
-    nZ = arange(1, n // 2 + 1, 1)
+    nZ = arange(1, n//2 + 1, 1)
 
     # Calculate Zwicker a0 factor (transfer characteristic of the outer and inner ear)
     a0 = zeros((n))
@@ -68,14 +62,14 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     spec = a0 * spec
 
     # Conversion of the spec into dB
-    module = abs(spec[0 : n // 2])
+    module = abs(spec[0:n//2])
     spec_dB = amp2db(module, ref=2e-5)
 
     # Find the audible components within the spec
     threshold = LTQ(bark_axis, reference="roughness")
     audible_index = where(spec_dB > threshold)[0]
+    # Number of audible frequencies
     n_aud = len(audible_index)
-    n_channel = 47
 
     # --------------------------------- stage 1 ------------------------------------
     # ----------------Creation of the specific excitations functions----------------
@@ -86,6 +80,8 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     s2 = minimum(-24 - (230 / freq_axis[audible_index]) + (0.2 * level), 0)
 
     # The excitation pattern are calculated for 47 overlapping 1-bark-wide channels
+    n_channel = 47
+    # Channels number
     zi = arange(1, n_channel + 1) / 2
     # Center frequencies for each channel
     zb = bark2freq(zi) * n / fs
@@ -95,6 +91,12 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # Lower and higher channel limits of each component
     ch_low = floor(2 * bark) - 1
     ch_high = ceil(2 * bark) - 1
+    # A component above the last channel raised IndexError in the former loops;
+    # keep that behaviour.
+    if n_aud and ch_low.max() >= n_channel:
+        raise IndexError(
+            "index %d is out of bounds for axis 0 with size %d" % (n_channel, n_channel)
+        )
 
     # Excitation pattern, shape (n_aud, n_channel): a component excites the
     # channels below it along the lower slope and those above along the upper one
@@ -156,12 +158,10 @@ def _roughness_dw_main_calc(spec, freq_axis, fs, gzi, hWeight):
     # i and i+2 with dz= 1 bark. Channels without modulation hold only rounding
     # noise (modulation depth of order 1e-16) and are left out.
     ki = zeros((47))
-    pair = (mod_depth[:45] > 1e-10) & (mod_depth[2:47] > 1e-10)
-    if pair.any():
-        centred = hBP - hBP.mean(axis=1, keepdims=True)
-        energy = (centred * centred).sum(axis=1)
-        cross = (centred[:45] * centred[2:47]).sum(axis=1)
-        ki[:45][pair] = cross[pair] / sqrt(energy[:45][pair] * energy[2:47][pair])
+
+    for i in range(0, 45):
+        if mod_depth[i] > 1e-10 and mod_depth[i + 2] > 1e-10:
+            ki[i] = corrcoef(hBP[i, :], hBP[i + 2, :])[0, 1]
 
     # Specific roughness calculation with gzi the modulation depth weighting
     # function given by Aures

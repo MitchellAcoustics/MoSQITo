@@ -13,14 +13,12 @@ numpy-call-heavy code a lot, so times are never taken while it is running).
 import argparse
 import inspect
 import os
-import sys
 import time
 import tracemalloc
 import warnings
 
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 warnings.simplefilter("ignore")
 
 import mosqito  # noqa: E402

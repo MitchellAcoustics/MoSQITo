@@ -40,8 +40,7 @@ def noct_spectrum(sig, fs, fmin, fmax, n=3, G=10, fr=1000, workers=None):
     workers : int, optional
         Number of threads used to filter the bands in parallel (one task per
         band, about 28 for third octaves between 24 Hz and 12.5 kHz). Default is
-        the ``MOSQITO_WORKERS`` environment variable if set, else 1 (no
-        threads). More than the number of cores brings nothing.
+        1 (no threads). More than the number of cores brings nothing.
 
     Returns
     -------

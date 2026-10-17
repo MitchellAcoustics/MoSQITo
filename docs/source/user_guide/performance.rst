@@ -15,8 +15,7 @@ accept a ``workers`` argument::
 
     N, N_time, N_spec, bark_axis, time_axis = loudness_ecma(signal, fs, workers=4)
 
-If ``workers`` is not given, the ``MOSQITO_WORKERS`` environment variable is used,
-and if that is not set either, one thread is used: **nothing runs in parallel
+If ``workers`` is not given, one thread is used: **nothing runs in parallel
 unless you ask for it**. This avoids oversubscribing the machine when you already
 run MoSQITo from your own threads or processes. The results do not depend on the
 number of workers.
@@ -34,9 +33,10 @@ independent tasks and extra threads beyond the number of tasks stay idle:
    * - ``noct_spectrum``
      - one per band, about 28 for third octaves between 24 Hz and 12.5 kHz
    * - ``roughness_dw``
-     - one per 200 ms segment, about 9 per second of signal at the default overlap
+     - one per 200 ms segment, about 10 per second of signal at the default overlap
 
-Beyond the number of physical cores of your machine, more workers bring nothing.
+More workers than tasks have no effect, and beyond the number of physical cores
+of your machine they bring nothing.
 The filters and FFTs run in SciPy and NumPy, which release Python's global
 interpreter lock, so ordinary threads are enough. Each thread of ``roughness_ecma``
 holds the working arrays of one band, which grow with the signal duration.
@@ -46,19 +46,22 @@ Memory
 
 ``loudness_ecma`` and ``roughness_ecma`` filter, segment and reduce one band at a
 time. Previously all 53 bands were held at once in an array repeating every sample
-two to four times, about 2.9 GB for 20 s of signal in ``loudness_ecma``.
+two to four times; the peak memory of ``loudness_ecma`` was about 2.9 GB for 20 s
+of signal.
 
 Measured speed
 --------------
 
-Measured with ``benchmarks/bench_metrics.py``, best of two runs, on a 4-core
-machine. The comparison is with the previous release.
+Measured with ``benchmarks/bench_metrics.py``, best of several runs (``--repeat``,
+default 3), on a 4-core machine. The comparison is with the code before this
+change. Peak memory is the peak traced by ``tracemalloc``, not the resident set
+size of the process.
 
 .. list-table:: 5 s of signal, time in seconds (peak memory in MB)
    :header-rows: 1
 
    * - Function
-     - Previous
+     - Before
      - Now, 1 worker
      - Now, 4 workers
    * - ``loudness_zwtv``

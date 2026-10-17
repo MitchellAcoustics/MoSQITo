@@ -38,9 +38,8 @@ def roughness_ecma(signal, fs, workers=None):
         Sampling frequency [Hz].
     workers: int, optional
         Number of threads used to process the 53 bands in parallel. Default is
-        the ``MOSQITO_WORKERS`` environment variable if set, else 1 (no threads).
-        More than the number of cores brings nothing; each thread holds the
-        working arrays of one band, which grow with the signal duration.
+        1 (no threads). More workers than bands have no effect; each thread
+        holds the working arrays of one band, which grow with the signal duration.
 
     Returns
     -------
@@ -120,7 +119,7 @@ def roughness_ecma(signal, fs, workers=None):
     sh=4096
     duration =  len(signal) / fs
         
-    # Preprocessing (a copy: the caller's array is untouched)
+    # Preprocessing 
     signal, n_new = _preprocessing(signal, sb, sh)
     # Outer and middle ear filtering
     ear_signal = ear_filtered(signal)
@@ -129,7 +128,7 @@ def roughness_ecma(signal, fs, workers=None):
     time_axis = ecma_time_axis(len(signal), index)
 
     # Downsampling to 1500 Hz
-    sbb = 512
+    sbb = 512 
     downsampling_factor = 32
 
     # Each band is filtered, segmented, reduced to its specific loudness and
